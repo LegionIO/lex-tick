@@ -49,7 +49,7 @@ module Legion
             }
           end
 
-          def evaluate_mode_transition(signals: [], emergency: nil, **) # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+          def evaluate_mode_transition(signals: [], emergency: nil, dream_complete: false, **) # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
             state = tick_state
 
             # Emergency promotion
@@ -66,12 +66,24 @@ module Legion
                        when :dormant
                          if signals.any?
                            :sentinel
+                         elsif state.seconds_since_signal >= Helpers::Constants::DREAM_IDLE_THRESHOLD
+                           :dormant_active
                          else
                            :dormant
+                         end
+                       when :dormant_active
+                         if max_salience >= Helpers::Constants::HIGH_SALIENCE_THRESHOLD || has_human
+                           :sentinel
+                         elsif dream_complete
+                           :dormant
+                         else
+                           :dormant_active
                          end
                        when :sentinel
                          if has_human || max_salience >= Helpers::Constants::HIGH_SALIENCE_THRESHOLD
                            :full_active
+                         elsif state.seconds_since_signal >= Helpers::Constants::SENTINEL_TO_DREAM_THRESHOLD
+                           :dormant_active
                          elsif state.seconds_since_signal >= Helpers::Constants::SENTINEL_TIMEOUT
                            :dormant
                          else

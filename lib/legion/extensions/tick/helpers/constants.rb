@@ -6,7 +6,7 @@ module Legion
       module Helpers
         module Constants
           # Tick modes
-          MODES = %i[dormant sentinel full_active].freeze
+          MODES = %i[dormant dormant_active sentinel full_active].freeze
 
           # 11 phases of a full active tick
           PHASES = %i[
@@ -23,20 +23,33 @@ module Legion
             memory_consolidation
           ].freeze
 
+          # Phases for dream cycle (dormant_active mode)
+          DREAM_PHASES = %i[
+            memory_audit
+            association_walk
+            contradiction_resolution
+            identity_entropy_check
+            agenda_formation
+            consolidation_commit
+          ].freeze
+
           # Which phases run in each mode
           MODE_PHASES = {
-            dormant:     %i[memory_consolidation],
-            sentinel:    %i[sensory_processing emotional_evaluation memory_retrieval prediction_engine memory_consolidation],
-            full_active: PHASES
+            dormant:        %i[memory_consolidation],
+            dormant_active: DREAM_PHASES,
+            sentinel:       %i[sensory_processing emotional_evaluation memory_retrieval prediction_engine memory_consolidation],
+            full_active:    PHASES
           }.freeze
 
           # Timing constants (in seconds)
-          ACTIVE_TIMEOUT           = 300    # seconds without high-salience signal before demotion
-          SENTINEL_TIMEOUT         = 3600   # seconds without any signal before demotion to dormant
-          MAX_TICK_DURATION        = 5.0    # hard ceiling for full active tick (seconds)
-          SENTINEL_TICK_BUDGET     = 0.5    # time budget for sentinel tick
-          DORMANT_TICK_BUDGET      = 0.2    # time budget for dormant tick
-          EMERGENCY_PROMOTION_BUDGET = 0.05 # max latency for emergency mode promotion
+          ACTIVE_TIMEOUT                = 300    # seconds without high-salience signal before demotion
+          SENTINEL_TIMEOUT              = 3600   # seconds without any signal before demotion to dormant
+          DREAM_IDLE_THRESHOLD          = 1800   # seconds dormant with no signal before entering dream cycle
+          SENTINEL_TO_DREAM_THRESHOLD   = 600    # seconds sentinel with no signal before entering dream cycle
+          MAX_TICK_DURATION             = 5.0    # hard ceiling for full active tick (seconds)
+          SENTINEL_TICK_BUDGET          = 0.5    # time budget for sentinel tick
+          DORMANT_TICK_BUDGET           = 0.2    # time budget for dormant tick
+          EMERGENCY_PROMOTION_BUDGET    = 0.05   # max latency for emergency mode promotion
 
           # Phase timing budgets (fraction of total tick time)
           PHASE_BUDGETS = {
@@ -65,9 +78,10 @@ module Legion
 
           def tick_budget(mode)
             case mode
-            when :dormant  then DORMANT_TICK_BUDGET
-            when :sentinel then SENTINEL_TICK_BUDGET
-            else                MAX_TICK_DURATION
+            when :dormant        then DORMANT_TICK_BUDGET
+            when :dormant_active then Float::INFINITY
+            when :sentinel       then SENTINEL_TICK_BUDGET
+            else                      MAX_TICK_DURATION
             end
           end
         end

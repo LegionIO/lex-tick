@@ -6,6 +6,10 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
   let(:client) { Legion::Extensions::Tick::Client.new }
 
   describe '#execute_tick' do
+    before do
+      allow(client.send(:tick_state)).to receive(:seconds_since_signal).and_return(60.0)
+    end
+
     it 'executes phases for current mode' do
       result = client.execute_tick
       expect(result[:mode]).to eq(:dormant)
@@ -69,9 +73,61 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
       expect(result[:new_mode]).to eq(:full_active)
     end
 
-    it 'does not transition without trigger' do
+    it 'does not transition without trigger when recently active' do
+      state = client.send(:tick_state)
+      allow(state).to receive(:seconds_since_signal).and_return(60.0)
       result = client.evaluate_mode_transition
       expect(result[:transitioned]).to be false
+    end
+
+    context 'dormant_active transitions' do
+      it 'transitions dormant -> dormant_active after DREAM_IDLE_THRESHOLD with no signals' do
+        state = client.send(:tick_state)
+        allow(state).to receive(:seconds_since_signal).and_return(1801.0)
+        result = client.evaluate_mode_transition
+        expect(result[:transitioned]).to be true
+        expect(result[:new_mode]).to eq(:dormant_active)
+      end
+
+      it 'transitions dormant -> sentinel when signals arrive (not dormant_active)' do
+        state = client.send(:tick_state)
+        allow(state).to receive(:seconds_since_signal).and_return(1801.0)
+        result = client.evaluate_mode_transition(signals: [{ salience: 0.3 }])
+        expect(result[:transitioned]).to be true
+        expect(result[:new_mode]).to eq(:sentinel)
+      end
+
+      it 'transitions dormant_active -> sentinel on high-salience signal' do
+        client.set_mode(mode: :dormant_active)
+        result = client.evaluate_mode_transition(signals: [{ salience: 0.9 }])
+        expect(result[:transitioned]).to be true
+        expect(result[:new_mode]).to eq(:sentinel)
+      end
+
+      it 'transitions dormant_active -> dormant when dream_complete: true with no signals' do
+        client.set_mode(mode: :dormant_active)
+        result = client.evaluate_mode_transition(dream_complete: true)
+        expect(result[:transitioned]).to be true
+        expect(result[:new_mode]).to eq(:dormant)
+      end
+
+      it 'stays dormant_active when no signals and dream not complete' do
+        client.set_mode(mode: :dormant_active)
+        result = client.evaluate_mode_transition
+        expect(result[:transitioned]).to be false
+        expect(result[:current_mode]).to eq(:dormant_active)
+      end
+    end
+
+    context 'sentinel -> dormant_active' do
+      it 'transitions sentinel -> dormant_active after SENTINEL_TO_DREAM_THRESHOLD with no signals' do
+        client.set_mode(mode: :sentinel)
+        state = client.send(:tick_state)
+        allow(state).to receive(:seconds_since_signal).and_return(601.0)
+        result = client.evaluate_mode_transition
+        expect(result[:transitioned]).to be true
+        expect(result[:new_mode]).to eq(:dormant_active)
+      end
     end
   end
 
