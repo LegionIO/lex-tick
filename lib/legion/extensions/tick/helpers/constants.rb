@@ -40,17 +40,17 @@ module Legion
 
           # Phase timing budgets (fraction of total tick time)
           PHASE_BUDGETS = {
-            sensory_processing:        0.15,
-            emotional_evaluation:      0.10,
-            memory_retrieval:          0.20,
-            identity_entropy_check:    0.05,
+            sensory_processing:         0.15,
+            emotional_evaluation:       0.10,
+            memory_retrieval:           0.20,
+            identity_entropy_check:     0.05,
             working_memory_integration: 0.05,
-            procedural_check:          0.10,
-            prediction_engine:         0.15,
-            mesh_interface:            0.05,
-            gut_instinct:              0.05,
-            action_selection:          0.05,
-            memory_consolidation:      0.05
+            procedural_check:           0.10,
+            prediction_engine:          0.15,
+            mesh_interface:             0.05,
+            gut_instinct:               0.05,
+            action_selection:           0.05,
+            memory_consolidation:       0.05
           }.freeze
 
           # Salience thresholds for mode transitions

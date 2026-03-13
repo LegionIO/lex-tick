@@ -21,7 +21,10 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
     it 'uses phase handlers when provided' do
       handler_called = false
       handlers = {
-        memory_consolidation: ->(**) { handler_called = true; { status: :ok } }
+        memory_consolidation: lambda { |**|
+          handler_called = true
+          { status: :ok }
+        }
       }
       client.execute_tick(phase_handlers: handlers)
       expect(handler_called).to be true

@@ -40,12 +40,12 @@ module Legion
             end
 
             {
-              tick_number:      state.tick_count,
-              mode:             state.mode,
-              phases_executed:  results.keys,
-              phases_skipped:   phases - results.keys,
-              results:          results,
-              elapsed:          Time.now.utc - start_time
+              tick_number:     state.tick_count,
+              mode:            state.mode,
+              phases_executed: results.keys,
+              phases_skipped:  phases - results.keys,
+              results:         results,
+              elapsed:         Time.now.utc - start_time
             }
           end
 
@@ -85,11 +85,11 @@ module Legion
                          end
                        end
 
-            if new_mode != state.mode
+            if new_mode == state.mode
+              { transitioned: false, current_mode: state.mode }
+            else
               state.transition_to(new_mode)
               { transitioned: true, new_mode: new_mode, reason: :threshold }
-            else
-              { transitioned: false, current_mode: state.mode }
             end
           end
 
@@ -98,9 +98,7 @@ module Legion
           end
 
           def set_mode(mode:, **)
-            unless Helpers::Constants::MODES.include?(mode)
-              return { error: :invalid_mode, valid_modes: Helpers::Constants::MODES }
-            end
+            return { error: :invalid_mode, valid_modes: Helpers::Constants::MODES } unless Helpers::Constants::MODES.include?(mode)
 
             tick_state.transition_to(mode)
             { mode: mode }
