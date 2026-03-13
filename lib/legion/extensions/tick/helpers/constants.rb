@@ -65,10 +65,9 @@ module Legion
 
           def tick_budget(mode)
             case mode
-            when :dormant     then DORMANT_TICK_BUDGET
-            when :sentinel    then SENTINEL_TICK_BUDGET
-            when :full_active then MAX_TICK_DURATION
-            else MAX_TICK_DURATION
+            when :dormant  then DORMANT_TICK_BUDGET
+            when :sentinel then SENTINEL_TICK_BUDGET
+            else                MAX_TICK_DURATION
             end
           end
         end

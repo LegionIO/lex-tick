@@ -49,7 +49,7 @@ module Legion
             }
           end
 
-          def evaluate_mode_transition(signals: [], emergency: nil, **)
+          def evaluate_mode_transition(signals: [], emergency: nil, **) # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
             state = tick_state
 
             # Emergency promotion
