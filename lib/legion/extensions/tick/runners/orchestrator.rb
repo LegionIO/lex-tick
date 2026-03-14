@@ -12,13 +12,11 @@ module Legion
             state = tick_state
             state.increment_tick
 
-            # Record incoming signals
             max_salience = signals.map { |s| s.is_a?(Hash) ? (s[:salience] || 0.0) : 0.0 }.max || 0.0
             state.record_signal(salience: max_salience) unless signals.empty?
 
             Legion::Logging.debug "[tick] ##{state.tick_count} starting | mode=#{state.mode} signals=#{signals.size} max_salience=#{max_salience.round(2)}"
 
-            # Evaluate mode transitions before tick
             transition = evaluate_mode_transition(signals: signals)
             if transition[:transitioned]
               Legion::Logging.info "[tick] mode transition: #{transition[:previous_mode]} -> #{transition[:new_mode]} (#{transition[:reason]})"
@@ -27,36 +25,12 @@ module Legion
             phases = Helpers::Constants.phases_for_mode(state.mode)
             budget = Helpers::Constants.tick_budget(state.mode)
             start_time = Time.now.utc
-            results = {}
-
-            Legion::Logging.debug "[tick] ##{state.tick_count} running #{phases.size} phases with #{budget}s budget"
-
-            phases.each do |phase|
-              elapsed = Time.now.utc - start_time
-              if elapsed >= budget
-                Legion::Logging.debug "[tick] ##{state.tick_count} budget exhausted at #{elapsed.round(3)}s, skipping remaining phases"
-                break
-              end
-
-              handler = phase_handlers[phase]
-              phase_start = Time.now.utc
-              result = if handler
-                         handler.call(state: state, signals: signals, prior_results: results)
-                       else
-                         { status: :no_handler }
-                       end
-              phase_elapsed = ((Time.now.utc - phase_start) * 1000).round(1)
-
-              state.record_phase(phase, result)
-              results[phase] = result
-
-              status = result.is_a?(Hash) ? (result[:status] || :ok) : :ok
-              Legion::Logging.debug "[tick] ##{state.tick_count} phase=#{phase} status=#{status} (#{phase_elapsed}ms)"
-            end
+            ctx = { budget: budget, start_time: start_time, phase_handlers: phase_handlers, signals: signals }
+            results = run_phases(phases, state, ctx)
 
             total_elapsed = Time.now.utc - start_time
             skipped = phases - results.keys
-            Legion::Logging.info "[tick] ##{state.tick_count} complete | mode=#{state.mode} phases=#{results.size}/#{phases.size} elapsed=#{(total_elapsed * 1000).round(1)}ms#{" skipped=#{skipped}" unless skipped.empty?}"
+            log_tick_complete(state, results, phases, total_elapsed, skipped)
 
             {
               tick_number:     state.tick_count,
@@ -146,6 +120,41 @@ module Legion
           end
 
           private
+
+          def run_phases(phases, state, ctx)
+            results = {}
+            budget = ctx[:budget]
+            start_time = ctx[:start_time]
+            Legion::Logging.debug "[tick] ##{state.tick_count} running #{phases.size} phases with #{budget}s budget"
+            phases.each do |phase|
+              elapsed = Time.now.utc - start_time
+              if elapsed >= budget
+                Legion::Logging.debug "[tick] ##{state.tick_count} budget exhausted at #{elapsed.round(3)}s, skipping remaining phases"
+                break
+              end
+
+              result = run_single_phase(phase, ctx[:phase_handlers][phase], state, ctx[:signals], results)
+              state.record_phase(phase, result)
+              results[phase] = result
+            end
+            results
+          end
+
+          def run_single_phase(phase, handler, state, signals, results)
+            phase_start = Time.now.utc
+            result = handler ? handler.call(state: state, signals: signals, prior_results: results) : { status: :no_handler }
+            phase_elapsed = ((Time.now.utc - phase_start) * 1000).round(1)
+            status = result.is_a?(Hash) ? (result[:status] || :ok) : :ok
+            Legion::Logging.debug "[tick] ##{state.tick_count} phase=#{phase} status=#{status} (#{phase_elapsed}ms)"
+            result
+          end
+
+          def log_tick_complete(state, results, phases, total_elapsed, skipped)
+            skipped_suffix = skipped.empty? ? '' : " skipped=#{skipped}"
+            Legion::Logging.info "[tick] ##{state.tick_count} complete | mode=#{state.mode} " \
+                                 "phases=#{results.size}/#{phases.size} " \
+                                 "elapsed=#{(total_elapsed * 1000).round(1)}ms#{skipped_suffix}"
+          end
 
           def tick_state
             @tick_state ||= Helpers::State.new
