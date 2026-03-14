@@ -8,7 +8,7 @@ module Legion
           # Tick modes
           MODES = %i[dormant dormant_active sentinel full_active].freeze
 
-          # 11 phases of a full active tick
+          # 12 phases of a full active tick
           PHASES = %i[
             sensory_processing
             emotional_evaluation
@@ -21,6 +21,7 @@ module Legion
             gut_instinct
             action_selection
             memory_consolidation
+            post_tick_reflection
           ].freeze
 
           # Phases for dream cycle (dormant_active mode)
@@ -31,6 +32,8 @@ module Legion
             identity_entropy_check
             agenda_formation
             consolidation_commit
+            dream_reflection
+            dream_narration
           ].freeze
 
           # Which phases run in each mode
@@ -63,7 +66,8 @@ module Legion
             mesh_interface:             0.05,
             gut_instinct:               0.05,
             action_selection:           0.05,
-            memory_consolidation:       0.05
+            memory_consolidation:       0.05,
+            post_tick_reflection:       0.05
           }.freeze
 
           # Salience thresholds for mode transitions

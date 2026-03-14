@@ -1,6 +1,6 @@
 # lex-tick
 
-Atomic cognitive processing cycle for brain-modeled agentic AI. Implements the core tick loop with 11 phases, 3 operating modes, and mode transition logic.
+Atomic cognitive processing cycle for brain-modeled agentic AI. Implements the core tick loop with 11 phases, 4 operating modes, and mode transition logic.
 
 ## Overview
 
@@ -8,11 +8,12 @@ Atomic cognitive processing cycle for brain-modeled agentic AI. Implements the c
 
 ## Operating Modes
 
-The agent operates in one of three modes at any time:
+The agent operates in one of four modes at any time:
 
 | Mode | Description | Phases Run | Tick Budget |
 |------|-------------|------------|-------------|
 | `dormant` | No active signals | `memory_consolidation` only | 0.2s |
+| `dormant_active` | Dream cycle — idle consolidation | 6 dream phases | uncapped |
 | `sentinel` | Low-activity monitoring | 5 phases | 0.5s |
 | `full_active` | Full cognitive engagement | All 11 phases | 5.0s |
 
@@ -20,6 +21,7 @@ Mode transitions are driven by signal salience thresholds and time-since-signal:
 - Any signal: `dormant` -> `sentinel`
 - High salience (>= 0.7) or human direct input: `sentinel` -> `full_active`
 - No high-salience signal for 300s: `full_active` -> `sentinel`
+- No signal for 1800s while dormant: `dormant` -> `dormant_active` (dream cycle)
 - No signal for 3600s: `sentinel` -> `dormant`
 - Emergency trigger (`:firmware_violation`, `:extinction_protocol`): immediate `full_active`
 

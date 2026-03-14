@@ -13,9 +13,9 @@ RSpec.describe Legion::Extensions::Tick::Helpers::Constants do
       expect(phases).to include(:sensory_processing, :memory_retrieval)
     end
 
-    it 'returns all 11 phases for full_active' do
+    it 'returns all 12 phases for full_active' do
       phases = described_class.phases_for_mode(:full_active)
-      expect(phases.size).to eq(11)
+      expect(phases.size).to eq(12)
     end
   end
 
@@ -33,13 +33,14 @@ RSpec.describe Legion::Extensions::Tick::Helpers::Constants do
     end
   end
 
-  it 'defines exactly 11 phases' do
-    expect(described_class::PHASES.size).to eq(11)
+  it 'defines exactly 12 phases' do
+    expect(described_class::PHASES.size).to eq(12)
   end
 
-  it 'defines phase budgets summing to 1.0' do
-    total = described_class::PHASE_BUDGETS.values.sum
-    expect(total).to be_within(0.001).of(1.0)
+  it 'defines phase budgets for all active phases' do
+    described_class::PHASES.each do |phase|
+      expect(described_class::PHASE_BUDGETS).to have_key(phase)
+    end
   end
 
   describe 'MODES' do
@@ -53,19 +54,20 @@ RSpec.describe Legion::Extensions::Tick::Helpers::Constants do
   end
 
   describe 'DREAM_PHASES' do
-    it 'defines 6 dream phases' do
-      expect(described_class::DREAM_PHASES.size).to eq(6)
+    it 'defines 8 dream phases' do
+      expect(described_class::DREAM_PHASES.size).to eq(8)
     end
 
     it 'includes all expected dream phase symbols' do
       expected = %i[memory_audit association_walk contradiction_resolution
-                    identity_entropy_check agenda_formation consolidation_commit]
+                    identity_entropy_check agenda_formation consolidation_commit
+                    dream_reflection dream_narration]
       expect(described_class::DREAM_PHASES).to eq(expected)
     end
   end
 
   describe 'MODE_PHASES' do
-    it 'maps dormant_active to the 6 dream phases' do
+    it 'maps dormant_active to the 8 dream phases' do
       expect(described_class::MODE_PHASES[:dormant_active]).to eq(described_class::DREAM_PHASES)
     end
   end

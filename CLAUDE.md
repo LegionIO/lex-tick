@@ -1,7 +1,7 @@
 # lex-tick
 
 **Level 3 Documentation**
-- **Parent**: `extensions-agentic/CLAUDE.md`
+- **Parent**: `/Users/miverso2/rubymine/legion/extensions-agentic/CLAUDE.md`
 - **Grandparent**: `/Users/miverso2/rubymine/legion/CLAUDE.md`
 
 ## Purpose
@@ -38,8 +38,9 @@ spec/
 
 ## Key Concepts
 
-### Three Modes
+### Four Modes
 - `:dormant` - 0.2s budget, only `memory_consolidation` runs
+- `:dormant_active` - uncapped budget, 6 dream phases run (idle consolidation cycle via lex-dream)
 - `:sentinel` - 0.5s budget, 5 phases run (sensing + prediction + consolidation)
 - `:full_active` - 5.0s budget, all 11 phases run
 
@@ -55,6 +56,8 @@ spec/
 - `MAX_TICK_DURATION = 5.0`
 - `SENTINEL_TICK_BUDGET = 0.5`
 - `DORMANT_TICK_BUDGET = 0.2`
+- `DREAM_IDLE_THRESHOLD = 1800` (seconds dormant with no signal before entering dream cycle)
+- `SENTINEL_TO_DREAM_THRESHOLD = 600` (seconds sentinel with no signal before entering dream cycle)
 
 ## Runner Methods
 
