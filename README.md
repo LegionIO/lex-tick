@@ -1,6 +1,6 @@
 # lex-tick
 
-Atomic cognitive processing cycle for brain-modeled agentic AI. Implements the core tick loop with 11 phases, 4 operating modes, and mode transition logic.
+Atomic cognitive processing cycle for brain-modeled agentic AI. Implements the core tick loop with 12 phases, 4 operating modes, and mode transition logic.
 
 ## Overview
 
@@ -13,9 +13,9 @@ The agent operates in one of four modes at any time:
 | Mode | Description | Phases Run | Tick Budget |
 |------|-------------|------------|-------------|
 | `dormant` | No active signals | `memory_consolidation` only | 0.2s |
-| `dormant_active` | Dream cycle — idle consolidation | 6 dream phases | uncapped |
+| `dormant_active` | Dream cycle — idle consolidation | 8 dream phases | uncapped |
 | `sentinel` | Low-activity monitoring | 5 phases | 0.5s |
-| `full_active` | Full cognitive engagement | All 11 phases | 5.0s |
+| `full_active` | Full cognitive engagement | All 12 phases | 5.0s |
 
 Mode transitions are driven by signal salience thresholds and time-since-signal:
 - Any signal: `dormant` -> `sentinel`
@@ -25,7 +25,7 @@ Mode transitions are driven by signal salience thresholds and time-since-signal:
 - No signal for 3600s: `sentinel` -> `dormant`
 - Emergency trigger (`:firmware_violation`, `:extinction_protocol`): immediate `full_active`
 
-## 11 Phases (full_active)
+## 12 Phases (full_active)
 
 1. `sensory_processing` (15% budget)
 2. `emotional_evaluation` (10%)
@@ -38,6 +38,7 @@ Mode transitions are driven by signal salience thresholds and time-since-signal:
 9. `gut_instinct` (5%)
 10. `action_selection` (5%)
 11. `memory_consolidation` (5%)
+12. `post_tick_reflection` (5%)
 
 ## Installation
 
@@ -68,7 +69,7 @@ result = Legion::Extensions::Tick::Runners::Orchestrator.execute_tick(
 # Check mode
 result[:mode]            # => :full_active
 result[:tick_number]     # => 1
-result[:phases_executed] # => [:sensory_processing, ..., :memory_consolidation]
+result[:phases_executed] # => [:sensory_processing, ..., :post_tick_reflection]
 result[:elapsed]         # => 0.001
 
 # Check/set mode
