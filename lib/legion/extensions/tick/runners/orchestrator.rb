@@ -9,37 +9,16 @@ module Legion
                                                       Legion::Extensions::Helpers.const_defined?(:Lex)
 
           def execute_tick(signals: [], phase_handlers: {}, **)
-            state = tick_state
-            state.increment_tick
-
-            max_salience = signals.map { |s| s.is_a?(Hash) ? (s[:salience] || 0.0) : 0.0 }.max || 0.0
-            state.record_signal(salience: max_salience) unless signals.empty?
-
-            Legion::Logging.debug "[tick] ##{state.tick_count} starting | mode=#{state.mode} signals=#{signals.size} max_salience=#{max_salience.round(2)}"
-
-            transition = evaluate_mode_transition(signals: signals)
-            if transition[:transitioned]
-              Legion::Logging.info "[tick] mode transition: #{transition[:previous_mode]} -> #{transition[:new_mode]} (#{transition[:reason]})"
+            if defined?(Legion::Telemetry::OpenInference)
+              state = tick_state
+              Legion::Telemetry::OpenInference.agent_span(
+                name: "tick-#{state.tick_count + 1}", mode: state.mode,
+                phase_count: Helpers::Constants.phases_for_mode(state.mode).size,
+                budget_ms: (Helpers::Constants.tick_budget(state.mode) * 1000).round
+              ) { |_span| execute_tick_impl(signals: signals, phase_handlers: phase_handlers) }
+            else
+              execute_tick_impl(signals: signals, phase_handlers: phase_handlers)
             end
-
-            phases = Helpers::Constants.phases_for_mode(state.mode)
-            budget = Helpers::Constants.tick_budget(state.mode)
-            start_time = Time.now.utc
-            ctx = { budget: budget, start_time: start_time, phase_handlers: phase_handlers, signals: signals }
-            results = run_phases(phases, state, ctx)
-
-            total_elapsed = Time.now.utc - start_time
-            skipped = phases - results.keys
-            log_tick_complete(state, results, phases, total_elapsed, skipped)
-
-            {
-              tick_number:     state.tick_count,
-              mode:            state.mode,
-              phases_executed: results.keys,
-              phases_skipped:  skipped,
-              results:         results,
-              elapsed:         total_elapsed
-            }
           end
 
           def evaluate_mode_transition(signals: [], emergency: nil, dream_complete: false, **) # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
@@ -120,6 +99,40 @@ module Legion
           end
 
           private
+
+          def execute_tick_impl(signals:, phase_handlers:)
+            state = tick_state
+            state.increment_tick
+
+            max_salience = signals.map { |s| s.is_a?(Hash) ? (s[:salience] || 0.0) : 0.0 }.max || 0.0
+            state.record_signal(salience: max_salience) unless signals.empty?
+
+            Legion::Logging.debug "[tick] ##{state.tick_count} starting | mode=#{state.mode} signals=#{signals.size} max_salience=#{max_salience.round(2)}"
+
+            transition = evaluate_mode_transition(signals: signals)
+            if transition[:transitioned]
+              Legion::Logging.info "[tick] mode transition: #{transition[:previous_mode]} -> #{transition[:new_mode]} (#{transition[:reason]})"
+            end
+
+            phases = Helpers::Constants.phases_for_mode(state.mode)
+            budget = Helpers::Constants.tick_budget(state.mode)
+            start_time = Time.now.utc
+            ctx = { budget: budget, start_time: start_time, phase_handlers: phase_handlers, signals: signals }
+            results = run_phases(phases, state, ctx)
+
+            total_elapsed = Time.now.utc - start_time
+            skipped = phases - results.keys
+            log_tick_complete(state, results, phases, total_elapsed, skipped)
+
+            {
+              tick_number:     state.tick_count,
+              mode:            state.mode,
+              phases_executed: results.keys,
+              phases_skipped:  skipped,
+              results:         results,
+              elapsed:         total_elapsed
+            }
+          end
 
           def run_phases(phases, state, ctx)
             results = {}
