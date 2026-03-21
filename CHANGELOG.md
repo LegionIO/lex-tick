@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.2] - 2026-03-21
+
+### Fixed
+- Remove local path dependency on legion-gaia (use RubyGems)
+- Move legion-gaia dev dependency from gemspec to Gemfile (RuboCop Gemspec/DevelopmentDependencies)
+
 ## [0.1.1] - 2026-03-20
 
 ### Added
