@@ -162,9 +162,9 @@ module Legion
 
           def log_tick_complete(state, results, phases, total_elapsed, skipped)
             skipped_suffix = skipped.empty? ? '' : " skipped=#{skipped}"
-            log.info "[tick] ##{state.tick_count} complete | mode=#{state.mode} " \
-                     "phases=#{results.size}/#{phases.size} " \
-                     "elapsed=#{(total_elapsed * 1000).round(1)}ms#{skipped_suffix}"
+            log.debug "[tick] ##{state.tick_count} complete | mode=#{state.mode} " \
+                      "phases=#{results.size}/#{phases.size} " \
+                      "elapsed=#{(total_elapsed * 1000).round(1)}ms#{skipped_suffix}"
           end
 
           def tick_state

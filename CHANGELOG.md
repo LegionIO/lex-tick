@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.4] - 2026-03-22
+
+### Changed
+- Downgrade tick complete log line from info to debug level
+
 ## [0.1.3] - 2026-03-22
 
 ### Changed
