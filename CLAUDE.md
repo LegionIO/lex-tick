@@ -11,7 +11,7 @@ Atomic cognitive processing cycle for the LegionIO brain-modeled agentic archite
 ## Gem Info
 
 - **Gem name**: `lex-tick`
-- **Version**: `0.1.0`
+- **Version**: `0.1.2`
 - **Module**: `Legion::Extensions::Tick`
 - **Ruby**: `>= 3.4`
 - **License**: MIT

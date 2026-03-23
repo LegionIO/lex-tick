@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.5] - 2026-03-23
+
+### Changed
+- Add `knowledge_promotion` to DREAM_PHASES (9 phases, was 8) to match dream cycle Apollo integration
+
 ## [0.1.4] - 2026-03-22
 
 ### Changed
