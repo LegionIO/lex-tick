@@ -27,7 +27,7 @@ module Legion
 
             # Emergency promotion
             if emergency && Helpers::Constants::EMERGENCY_TRIGGERS.include?(emergency)
-              Legion::Logging.warn "[tick] emergency promotion triggered: #{emergency}"
+              log.warn "[tick] emergency promotion triggered: #{emergency}"
               state.transition_to(:full_active)
               return { transitioned: true, new_mode: :full_active, previous_mode: previous_mode, reason: :emergency }
             end
@@ -75,26 +75,26 @@ module Legion
               { transitioned: false, current_mode: state.mode }
             else
               state.transition_to(new_mode)
-              Legion::Logging.info "[tick] mode transition: #{previous_mode} -> #{new_mode} (threshold)"
+              log.info "[tick] mode transition: #{previous_mode} -> #{new_mode} (threshold)"
               { transitioned: true, new_mode: new_mode, previous_mode: previous_mode, reason: :threshold }
             end
           end
 
           def tick_status(**)
             status = tick_state.to_h
-            Legion::Logging.debug "[tick] status query: mode=#{status[:mode]} tick_count=#{status[:tick_count]}"
+            log.debug "[tick] status query: mode=#{status[:mode]} tick_count=#{status[:tick_count]}"
             status
           end
 
           def set_mode(mode:, **)
             unless Helpers::Constants::MODES.include?(mode)
-              Legion::Logging.warn "[tick] invalid mode requested: #{mode}"
+              log.warn "[tick] invalid mode requested: #{mode}"
               return { error: :invalid_mode, valid_modes: Helpers::Constants::MODES }
             end
 
             previous = tick_state.mode
             tick_state.transition_to(mode)
-            Legion::Logging.info "[tick] mode forced: #{previous} -> #{mode}"
+            log.info "[tick] mode forced: #{previous} -> #{mode}"
             { mode: mode }
           end
 
@@ -107,12 +107,10 @@ module Legion
             max_salience = signals.map { |s| s.is_a?(Hash) ? (s[:salience] || 0.0) : 0.0 }.max || 0.0
             state.record_signal(salience: max_salience) unless signals.empty?
 
-            Legion::Logging.debug "[tick] ##{state.tick_count} starting | mode=#{state.mode} signals=#{signals.size} max_salience=#{max_salience.round(2)}"
+            log.debug "[tick] ##{state.tick_count} starting | mode=#{state.mode} signals=#{signals.size} max_salience=#{max_salience.round(2)}"
 
             transition = evaluate_mode_transition(signals: signals)
-            if transition[:transitioned]
-              Legion::Logging.info "[tick] mode transition: #{transition[:previous_mode]} -> #{transition[:new_mode]} (#{transition[:reason]})"
-            end
+            log.info "[tick] mode transition: #{transition[:previous_mode]} -> #{transition[:new_mode]} (#{transition[:reason]})" if transition[:transitioned]
 
             phases = Helpers::Constants.phases_for_mode(state.mode)
             budget = Helpers::Constants.tick_budget(state.mode)
@@ -138,11 +136,11 @@ module Legion
             results = {}
             budget = ctx[:budget]
             start_time = ctx[:start_time]
-            Legion::Logging.debug "[tick] ##{state.tick_count} running #{phases.size} phases with #{budget}s budget"
+            log.debug "[tick] ##{state.tick_count} running #{phases.size} phases with #{budget}s budget"
             phases.each do |phase|
               elapsed = Time.now.utc - start_time
               if elapsed >= budget
-                Legion::Logging.debug "[tick] ##{state.tick_count} budget exhausted at #{elapsed.round(3)}s, skipping remaining phases"
+                log.debug "[tick] ##{state.tick_count} budget exhausted at #{elapsed.round(3)}s, skipping remaining phases"
                 break
               end
 
@@ -158,15 +156,15 @@ module Legion
             result = handler ? handler.call(state: state, signals: signals, prior_results: results) : { status: :no_handler }
             phase_elapsed = ((Time.now.utc - phase_start) * 1000).round(1)
             status = result.is_a?(Hash) ? (result[:status] || :ok) : :ok
-            Legion::Logging.debug "[tick] ##{state.tick_count} phase=#{phase} status=#{status} (#{phase_elapsed}ms)"
+            log.debug "[tick] ##{state.tick_count} phase=#{phase} status=#{status} (#{phase_elapsed}ms)"
             result
           end
 
           def log_tick_complete(state, results, phases, total_elapsed, skipped)
             skipped_suffix = skipped.empty? ? '' : " skipped=#{skipped}"
-            Legion::Logging.info "[tick] ##{state.tick_count} complete | mode=#{state.mode} " \
-                                 "phases=#{results.size}/#{phases.size} " \
-                                 "elapsed=#{(total_elapsed * 1000).round(1)}ms#{skipped_suffix}"
+            log.info "[tick] ##{state.tick_count} complete | mode=#{state.mode} " \
+                     "phases=#{results.size}/#{phases.size} " \
+                     "elapsed=#{(total_elapsed * 1000).round(1)}ms#{skipped_suffix}"
           end
 
           def tick_state
