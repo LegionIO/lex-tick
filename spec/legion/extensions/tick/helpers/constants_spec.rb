@@ -13,9 +13,9 @@ RSpec.describe Legion::Extensions::Tick::Helpers::Constants do
       expect(phases).to include(:sensory_processing, :memory_retrieval)
     end
 
-    it 'returns all 12 phases for full_active' do
+    it 'returns all 16 phases for full_active' do
       phases = described_class.phases_for_mode(:full_active)
-      expect(phases.size).to eq(13)
+      expect(phases.size).to eq(16)
     end
   end
 
@@ -33,8 +33,8 @@ RSpec.describe Legion::Extensions::Tick::Helpers::Constants do
     end
   end
 
-  it 'defines exactly 12 phases' do
-    expect(described_class::PHASES.size).to eq(13)
+  it 'defines exactly 16 phases' do
+    expect(described_class::PHASES.size).to eq(16)
   end
 
   it 'defines phase budgets for all active phases' do

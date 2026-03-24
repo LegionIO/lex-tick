@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.7] - 2026-03-24
+
+### Added
+- `social_cognition`, `theory_of_mind`, and `homeostasis_regulation` phases added to `PHASES` constant (now 16 phases in `full_active` mode)
+- Phase budgets redistributed across 16 phases (sum remains 1.0)
+
 ## [0.1.6] - 2026-03-24
 
 ### Added
