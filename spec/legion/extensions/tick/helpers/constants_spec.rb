@@ -15,7 +15,7 @@ RSpec.describe Legion::Extensions::Tick::Helpers::Constants do
 
     it 'returns all 12 phases for full_active' do
       phases = described_class.phases_for_mode(:full_active)
-      expect(phases.size).to eq(12)
+      expect(phases.size).to eq(13)
     end
   end
 
@@ -34,7 +34,7 @@ RSpec.describe Legion::Extensions::Tick::Helpers::Constants do
   end
 
   it 'defines exactly 12 phases' do
-    expect(described_class::PHASES.size).to eq(12)
+    expect(described_class::PHASES.size).to eq(13)
   end
 
   it 'defines phase budgets for all active phases' do

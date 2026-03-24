@@ -16,9 +16,9 @@ RSpec.describe Legion::Extensions::Tick::Client do
     expect(client.tick_status[:mode]).to eq(:sentinel)
   end
 
-  it 'runs a full active tick with all 12 phases' do
+  it 'runs a full active tick with all 13 phases' do
     client = described_class.new(mode: :full_active)
     result = client.execute_tick(signals: [{ salience: 0.9, source_type: :human_direct }])
-    expect(result[:phases_executed].size).to eq(12)
+    expect(result[:phases_executed].size).to eq(13)
   end
 end

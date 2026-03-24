@@ -8,11 +8,12 @@ module Legion
           # Tick modes
           MODES = %i[dormant dormant_active sentinel full_active].freeze
 
-          # 12 phases of a full active tick
+          # 13 phases of a full active tick
           PHASES = %i[
             sensory_processing
             emotional_evaluation
             memory_retrieval
+            knowledge_retrieval
             identity_entropy_check
             working_memory_integration
             procedural_check
@@ -59,7 +60,8 @@ module Legion
           PHASE_BUDGETS = {
             sensory_processing:         0.15,
             emotional_evaluation:       0.10,
-            memory_retrieval:           0.20,
+            memory_retrieval:           0.15,
+            knowledge_retrieval:        0.05,
             identity_entropy_check:     0.05,
             working_memory_integration: 0.05,
             procedural_check:           0.10,

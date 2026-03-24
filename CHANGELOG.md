@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.6] - 2026-03-24
+
+### Added
+- `knowledge_retrieval` phase added to `PHASES` constant (now 13 phases in `full_active` mode)
+- `knowledge_retrieval` added to `PHASE_BUDGETS` with 0.05 budget (redistributed from `memory_retrieval` 0.20 -> 0.15)
+
+### Fixed
+- `knowledge_retrieval` was defined in GAIA's `PHASE_MAP` but absent from lex-tick's `PHASES` array, making it unreachable during tick execution
+
 ## [0.1.5] - 2026-03-23
 
 ### Changed
