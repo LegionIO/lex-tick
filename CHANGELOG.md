@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.10] - 2026-03-30
+
+### Fixed
+- Add `remote_invocable?` spec to `orchestrator_spec.rb` to prevent regressions on local-dispatch enforcement
+
 ## [0.1.9] - 2026-03-30
 
 ### Changed

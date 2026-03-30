@@ -5,6 +5,12 @@ require 'legion/extensions/tick/client'
 RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
   let(:client) { Legion::Extensions::Tick::Client.new }
 
+  describe '.remote_invocable?' do
+    it 'returns false to prevent remote dispatch' do
+      expect(described_class.remote_invocable?).to be false
+    end
+  end
+
   describe '#execute_tick' do
     before do
       allow(client.send(:tick_state)).to receive(:seconds_since_signal).and_return(60.0)
