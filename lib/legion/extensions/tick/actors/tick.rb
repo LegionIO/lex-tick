@@ -10,7 +10,7 @@ module Legion
         # Cortex wires phase_handlers from all agentic extensions
         # and calls execute_tick with real handlers instead of empty ones.
         # To use tick standalone (without cortex), re-enable this actor.
-        class Tick < Legion::Extensions::Actors::Every
+        class Tick < Legion::Extensions::Actors::Every # rubocop:disable Legion/Extension/EveryActorRequiresTime
           def initialize(**opts)
             return unless enabled?
 
@@ -25,8 +25,8 @@ module Legion
             'execute_tick'
           end
 
-          def enabled?
-            !Legion::Extensions.const_defined?(:Cortex)
+          def enabled? # rubocop:disable Legion/Extension/ActorEnabledSideEffects
+            !Legion::Extensions.const_defined?(:Cortex, false)
           end
 
           def time
