@@ -5,8 +5,8 @@ module Legion
     module Tick
       module Runners
         module Orchestrator
-          include Legion::Extensions::Helpers::Lex if Legion::Extensions.const_defined?(:Helpers) &&
-                                                      Legion::Extensions::Helpers.const_defined?(:Lex)
+          include Legion::Extensions::Helpers::Lex if Legion::Extensions.const_defined?(:Helpers, false) &&
+                                                      Legion::Extensions::Helpers.const_defined?(:Lex, false)
 
           def execute_tick(signals: [], phase_handlers: {}, **)
             if defined?(Legion::Telemetry::OpenInference)
