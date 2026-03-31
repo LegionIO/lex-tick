@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.12] - 2026-03-31
+
+### Added
+- Add `partner_reflection` to DREAM_PHASES (10 phases, was 9) for Phase C bond reflection
+
 ## [0.1.11] - 2026-03-31
 
 ### Added

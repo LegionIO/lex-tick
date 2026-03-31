@@ -38,6 +38,7 @@ module Legion
             consolidation_commit
             knowledge_promotion
             dream_reflection
+            partner_reflection
             dream_narration
           ].freeze
 

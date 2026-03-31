@@ -54,20 +54,34 @@ RSpec.describe Legion::Extensions::Tick::Helpers::Constants do
   end
 
   describe 'DREAM_PHASES' do
-    it 'defines 9 dream phases' do
-      expect(described_class::DREAM_PHASES.size).to eq(9)
+    it 'defines 10 dream phases' do
+      expect(described_class::DREAM_PHASES.size).to eq(10)
     end
 
-    it 'includes all expected dream phase symbols' do
-      expected = %i[memory_audit association_walk contradiction_resolution
-                    identity_entropy_check agenda_formation consolidation_commit
-                    knowledge_promotion dream_reflection dream_narration]
+    it 'includes partner_reflection' do
+      expect(described_class::DREAM_PHASES).to include(:partner_reflection)
+    end
+
+    it 'has partner_reflection between dream_reflection and dream_narration' do
+      idx_reflection = described_class::DREAM_PHASES.index(:dream_reflection)
+      idx_partner    = described_class::DREAM_PHASES.index(:partner_reflection)
+      idx_narration  = described_class::DREAM_PHASES.index(:dream_narration)
+      expect(idx_partner).to be > idx_reflection
+      expect(idx_partner).to be < idx_narration
+    end
+
+    it 'lists all phases in order' do
+      expected = %i[
+        memory_audit association_walk contradiction_resolution
+        identity_entropy_check agenda_formation consolidation_commit
+        knowledge_promotion dream_reflection partner_reflection dream_narration
+      ]
       expect(described_class::DREAM_PHASES).to eq(expected)
     end
   end
 
   describe 'MODE_PHASES' do
-    it 'maps dormant_active to the 9 dream phases' do
+    it 'maps dormant_active to the 10 dream phases' do
       expect(described_class::MODE_PHASES[:dormant_active]).to eq(described_class::DREAM_PHASES)
     end
   end
