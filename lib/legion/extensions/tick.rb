@@ -2,6 +2,7 @@
 
 require 'legion/extensions/tick/version'
 require 'legion/extensions/tick/helpers/constants'
+require 'legion/extensions/tick/helpers/jitter'
 require 'legion/extensions/tick/helpers/state'
 require 'legion/extensions/tick/runners/orchestrator'
 

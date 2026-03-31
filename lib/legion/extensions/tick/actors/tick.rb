@@ -10,10 +10,11 @@ module Legion
         # Cortex wires phase_handlers from all agentic extensions
         # and calls execute_tick with real handlers instead of empty ones.
         # To use tick standalone (without cortex), re-enable this actor.
-        class Tick < Legion::Extensions::Actors::Every # rubocop:disable Legion/Extension/EveryActorRequiresTime
+        class Tick < Legion::Extensions::Actors::Every
           def initialize(**opts)
             return unless enabled?
 
+            apply_initial_jitter
             super
           end
 
@@ -51,6 +52,15 @@ module Legion
 
           def args
             { signals: [], phase_handlers: {} }
+          end
+
+          private
+
+          def apply_initial_jitter
+            return unless Helpers::Jitter.jitter_enabled?
+
+            offset = Helpers::Jitter.deterministic_jitter(self.class.name.to_s, time)
+            sleep(offset) if offset.positive?
           end
         end
       end

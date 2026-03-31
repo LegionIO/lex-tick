@@ -16,6 +16,9 @@ $LOADED_FEATURES << 'legion/extensions/actors/every'
 require 'legion/extensions/tick/actors/tick'
 
 RSpec.describe Legion::Extensions::Tick::Actor::Tick do
+  # Prevent real sleep calls in all examples; jitter tests override this per-context
+  before { allow_any_instance_of(described_class).to receive(:sleep) }
+
   subject(:actor) { described_class.new }
 
   describe '#initialize' do
@@ -99,6 +102,49 @@ RSpec.describe Legion::Extensions::Tick::Actor::Tick do
   describe '#args' do
     it 'returns a hash with empty signals and phase_handlers' do
       expect(actor.args).to eq({ signals: [], phase_handlers: {} })
+    end
+  end
+
+  describe 'initial jitter behavior' do
+    context 'when jitter is enabled and offset is positive' do
+      before do
+        allow(Legion::Extensions::Tick::Helpers::Jitter).to receive(:jitter_enabled?).and_return(true)
+        allow(Legion::Extensions::Tick::Helpers::Jitter).to receive(:deterministic_jitter).and_return(5)
+      end
+
+      it 'sleeps for the jitter offset during initialization' do
+        slept = nil
+        allow_any_instance_of(described_class).to receive(:sleep) { |_obj, secs| slept = secs }
+        described_class.new
+        expect(slept).to eq(5)
+      end
+    end
+
+    context 'when jitter offset is zero' do
+      before do
+        allow(Legion::Extensions::Tick::Helpers::Jitter).to receive(:jitter_enabled?).and_return(true)
+        allow(Legion::Extensions::Tick::Helpers::Jitter).to receive(:deterministic_jitter).and_return(0)
+      end
+
+      it 'does not call sleep' do
+        sleep_called = false
+        allow_any_instance_of(described_class).to receive(:sleep) { sleep_called = true }
+        described_class.new
+        expect(sleep_called).to be false
+      end
+    end
+
+    context 'when jitter is disabled' do
+      before do
+        allow(Legion::Extensions::Tick::Helpers::Jitter).to receive(:jitter_enabled?).and_return(false)
+      end
+
+      it 'does not call sleep' do
+        sleep_called = false
+        allow_any_instance_of(described_class).to receive(:sleep) { sleep_called = true }
+        described_class.new
+        expect(sleep_called).to be false
+      end
     end
   end
 end

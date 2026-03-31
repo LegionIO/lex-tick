@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.11] - 2026-03-31
+
+### Added
+- `Helpers::Jitter` module with `deterministic_jitter` and `jitter_enabled?` — prevents thundering herd when multiple nodes boot simultaneously
+- Tick actor applies deterministic initial jitter before first execution (10% of interval, capped at 15 minutes)
+- Jitter is per-task-name deterministic so all nodes handling the same task sleep the same offset
+- Configurable via `Legion::Settings[:tick][:jitter_enabled]` (default: `true`)
+
 ## [0.1.10] - 2026-03-30
 
 ### Fixed
