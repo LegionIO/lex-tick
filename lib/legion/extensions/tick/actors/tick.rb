@@ -19,10 +19,14 @@ module Legion
           end
 
           def runner_class
+            return Legion::Gaia if gaia_heartbeat_available?
+
             Legion::Extensions::Tick::Runners::Orchestrator
           end
 
           def runner_function
+            return 'heartbeat' if gaia_heartbeat_available?
+
             'execute_tick'
           end
 
@@ -51,10 +55,22 @@ module Legion
           end
 
           def args
+            return {} if gaia_heartbeat_available?
+
             { signals: [], phase_handlers: {} }
           end
 
           private
+
+          def gaia_heartbeat_available?
+            return false unless defined?(Legion::Gaia)
+            return false unless Legion::Gaia.respond_to?(:started?) && Legion::Gaia.started?
+
+            !Legion::Gaia.respond_to?(:router_mode?) || !Legion::Gaia.router_mode?
+          rescue StandardError => e
+            log.debug "gaia_heartbeat_available? check failed: #{e.message}"
+            false
+          end
 
           def apply_initial_jitter
             return unless Helpers::Jitter.jitter_enabled?

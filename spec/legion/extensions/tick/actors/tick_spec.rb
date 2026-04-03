@@ -58,14 +58,44 @@ RSpec.describe Legion::Extensions::Tick::Actor::Tick do
   end
 
   describe '#runner_class' do
-    it 'returns the Orchestrator module' do
+    it 'returns the Orchestrator module by default' do
+      expect(actor.runner_class).to eq(Legion::Extensions::Tick::Runners::Orchestrator)
+    end
+
+    it 'returns Legion::Gaia when Gaia is running in agent mode' do
+      stub_const('Legion::Gaia', Module.new do
+        def self.started? = true
+
+        def self.router_mode? = false
+      end)
+
+      expect(actor.runner_class).to eq(Legion::Gaia)
+    end
+
+    it 'falls back to the Orchestrator module when Gaia is running in router mode' do
+      stub_const('Legion::Gaia', Module.new do
+        def self.started? = true
+
+        def self.router_mode? = true
+      end)
+
       expect(actor.runner_class).to eq(Legion::Extensions::Tick::Runners::Orchestrator)
     end
   end
 
   describe '#runner_function' do
-    it 'returns execute_tick' do
+    it 'returns execute_tick by default' do
       expect(actor.runner_function).to eq('execute_tick')
+    end
+
+    it 'returns heartbeat when Gaia is running in agent mode' do
+      stub_const('Legion::Gaia', Module.new do
+        def self.started? = true
+
+        def self.router_mode? = false
+      end)
+
+      expect(actor.runner_function).to eq('heartbeat')
     end
   end
 
@@ -100,8 +130,18 @@ RSpec.describe Legion::Extensions::Tick::Actor::Tick do
   end
 
   describe '#args' do
-    it 'returns a hash with empty signals and phase_handlers' do
+    it 'returns a hash with empty signals and phase_handlers by default' do
       expect(actor.args).to eq({ signals: [], phase_handlers: {} })
+    end
+
+    it 'returns empty args when Gaia is running in agent mode' do
+      stub_const('Legion::Gaia', Module.new do
+        def self.started? = true
+
+        def self.router_mode? = false
+      end)
+
+      expect(actor.args).to eq({})
     end
   end
 

@@ -28,6 +28,11 @@ RSpec.describe Legion::Extensions::Tick::Helpers::State do
       state.record_signal(salience: 0.3)
       expect(state.last_high_salience_at).to be_nil
     end
+
+    it 'updates last_high_salience_at for human direct signals' do
+      state.record_signal(salience: 0.3, source_type: :human_direct)
+      expect(state.last_high_salience_at).not_to be_nil
+    end
   end
 
   describe '#increment_tick' do
@@ -40,6 +45,18 @@ RSpec.describe Legion::Extensions::Tick::Helpers::State do
       state.record_phase(:test, { result: true })
       state.increment_tick
       expect(state.phase_results).to be_empty
+    end
+  end
+
+  describe '#seconds_since_signal' do
+    it 'treats a fresh boot as recently active' do
+      expect(state.seconds_since_signal).to eq(0.0)
+    end
+  end
+
+  describe '#seconds_since_high_salience' do
+    it 'treats missing high-salience history as recent, not infinite' do
+      expect(state.seconds_since_high_salience).to eq(0.0)
     end
   end
 

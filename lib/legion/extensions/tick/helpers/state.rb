@@ -18,9 +18,11 @@ module Legion
             @mode_history = [{ mode: mode, at: Time.now.utc }]
           end
 
-          def record_signal(salience: 0.0)
+          def record_signal(salience: 0.0, source_type: nil)
             @last_signal_at = Time.now.utc
-            @last_high_salience_at = Time.now.utc if salience >= Constants::HIGH_SALIENCE_THRESHOLD
+            return unless salience >= Constants::HIGH_SALIENCE_THRESHOLD || source_type == :human_direct
+
+            @last_high_salience_at = Time.now.utc
           end
 
           def record_phase(phase, result)
@@ -43,13 +45,13 @@ module Legion
           end
 
           def seconds_since_signal
-            return Float::INFINITY unless @last_signal_at
+            return 0.0 unless @last_signal_at
 
             Time.now.utc - @last_signal_at
           end
 
           def seconds_since_high_salience
-            return Float::INFINITY unless @last_high_salience_at
+            return 0.0 unless @last_high_salience_at
 
             Time.now.utc - @last_high_salience_at
           end

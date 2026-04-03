@@ -12,16 +12,16 @@ module Legion
             false
           end
 
-          def execute_tick(signals: [], phase_handlers: {}, **)
+          def execute_tick(signals: [], phase_handlers: {}, **context)
             if defined?(Legion::Telemetry::OpenInference)
               state = tick_state
               Legion::Telemetry::OpenInference.agent_span(
                 name: "tick-#{state.tick_count + 1}", mode: state.mode,
                 phase_count: Helpers::Constants.phases_for_mode(state.mode).size,
                 budget_ms: (Helpers::Constants.tick_budget(state.mode) * 1000).round
-              ) { |_span| execute_tick_impl(signals: signals, phase_handlers: phase_handlers) }
+              ) { |_span| execute_tick_impl(signals: signals, phase_handlers: phase_handlers, **context) }
             else
-              execute_tick_impl(signals: signals, phase_handlers: phase_handlers)
+              execute_tick_impl(signals: signals, phase_handlers: phase_handlers, **context)
             end
           end
 
@@ -68,7 +68,7 @@ module Legion
                            :sentinel
                          end
                        when :full_active
-                         if state.seconds_since_high_salience >= Helpers::Constants::ACTIVE_TIMEOUT
+                         if full_active_cooldown_elapsed(state) >= Helpers::Constants::ACTIVE_TIMEOUT
                            :sentinel
                          else
                            :full_active
@@ -104,22 +104,28 @@ module Legion
 
           private
 
-          def execute_tick_impl(signals:, phase_handlers:)
+          def execute_tick_impl(signals:, phase_handlers:, **context)
             state = tick_state
             state.increment_tick
 
             max_salience = signals.map { |s| s.is_a?(Hash) ? (s[:salience] || 0.0) : 0.0 }.max || 0.0
-            state.record_signal(salience: max_salience) unless signals.empty?
+            has_human = signals.any? { |s| s.is_a?(Hash) && s[:source_type] == :human_direct }
+            state.record_signal(salience: max_salience, source_type: (has_human ? :human_direct : nil)) unless signals.empty?
 
             log.debug "[tick] ##{state.tick_count} starting | mode=#{state.mode} signals=#{signals.size} max_salience=#{max_salience.round(2)}"
 
-            transition = evaluate_mode_transition(signals: signals)
-            log.info "[tick] mode transition: #{transition[:previous_mode]} -> #{transition[:new_mode]} (#{transition[:reason]})" if transition[:transitioned]
+            evaluate_mode_transition(signals: signals)
 
             phases = Helpers::Constants.phases_for_mode(state.mode)
             budget = Helpers::Constants.tick_budget(state.mode)
             start_time = Time.now.utc
-            ctx = { budget: budget, start_time: start_time, phase_handlers: phase_handlers, signals: signals }
+            ctx = {
+              budget:         budget,
+              start_time:     start_time,
+              phase_handlers: phase_handlers,
+              signals:        signals,
+              context:        context
+            }
             results = run_phases(phases, state, ctx)
 
             total_elapsed = Time.now.utc - start_time
@@ -148,16 +154,16 @@ module Legion
                 break
               end
 
-              result = run_single_phase(phase, ctx[:phase_handlers][phase], state, ctx[:signals], results)
+              result = run_single_phase(phase, ctx[:phase_handlers][phase], state, ctx[:signals], results, **ctx[:context])
               state.record_phase(phase, result)
               results[phase] = result
             end
             results
           end
 
-          def run_single_phase(phase, handler, state, signals, results)
+          def run_single_phase(phase, handler, state, signals, results, **context)
             phase_start = Time.now.utc
-            result = handler ? handler.call(state: state, signals: signals, prior_results: results) : { status: :no_handler }
+            result = handler ? handler.call(state: state, signals: signals, prior_results: results, **context) : { status: :no_handler }
             phase_elapsed = ((Time.now.utc - phase_start) * 1000).round(1)
             status = result.is_a?(Hash) ? (result[:status] || :ok) : :ok
             log.debug "[tick] ##{state.tick_count} phase=#{phase} status=#{status} (#{phase_elapsed}ms)"
@@ -169,6 +175,16 @@ module Legion
             log.debug "[tick] ##{state.tick_count} complete | mode=#{state.mode} " \
                       "phases=#{results.size}/#{phases.size} " \
                       "elapsed=#{(total_elapsed * 1000).round(1)}ms#{skipped_suffix}"
+          end
+
+          def full_active_cooldown_elapsed(state)
+            if state.last_high_salience_at
+              state.seconds_since_high_salience
+            elsif state.last_signal_at
+              state.seconds_since_signal
+            else
+              Helpers::Constants::ACTIVE_TIMEOUT
+            end
           end
 
           def tick_state

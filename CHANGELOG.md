@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.13] - 2026-04-03
+
+### Changed
+- Resolve rubocop offenses: restructure `full_active_cooldown_elapsed` guard returns to conditional expression to satisfy `Legion/Extension/RunnerReturnHash`; add `=> e` capture and log call to `rescue StandardError` in tick actor to satisfy `Legion/RescueLogging/NoCapture`
+
 ## [0.1.12] - 2026-03-31
 
 ### Added

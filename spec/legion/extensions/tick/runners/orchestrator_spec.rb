@@ -40,6 +40,23 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
       expect(handler_called).to be true
     end
 
+    it 'passes extra execution context through to phase handlers' do
+      seen = nil
+      handlers = {
+        memory_consolidation: lambda { |partner_observations: nil, **|
+          seen = partner_observations
+          { status: :ok }
+        }
+      }
+
+      client.execute_tick(
+        phase_handlers:       handlers,
+        partner_observations: [{ identity: 'partner-1' }]
+      )
+
+      expect(seen).to eq([{ identity: 'partner-1' }])
+    end
+
     it 'reports no_handler for unhandled phases' do
       result = client.execute_tick
       expect(result[:results][:memory_consolidation][:status]).to eq(:no_handler)
@@ -84,6 +101,12 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
       allow(state).to receive(:seconds_since_signal).and_return(60.0)
       result = client.evaluate_mode_transition
       expect(result[:transitioned]).to be false
+    end
+
+    it 'does not enter dormant_active immediately on fresh boot' do
+      result = client.evaluate_mode_transition
+      expect(result[:transitioned]).to be false
+      expect(result[:current_mode]).to eq(:dormant)
     end
 
     context 'dormant_active transitions' do
@@ -133,6 +156,21 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
         result = client.evaluate_mode_transition
         expect(result[:transitioned]).to be true
         expect(result[:new_mode]).to eq(:dormant_active)
+      end
+    end
+
+    context 'full_active cooldown' do
+      it 'demotes full_active after ACTIVE_TIMEOUT when only human-direct signal history exists' do
+        client.set_mode(mode: :full_active)
+        state = client.send(:tick_state)
+        allow(state).to receive(:last_high_salience_at).and_return(nil)
+        allow(state).to receive(:last_signal_at).and_return(Time.now.utc - 301)
+        allow(state).to receive(:seconds_since_signal).and_return(301.0)
+
+        result = client.evaluate_mode_transition
+
+        expect(result[:transitioned]).to be true
+        expect(result[:new_mode]).to eq(:sentinel)
       end
     end
   end
