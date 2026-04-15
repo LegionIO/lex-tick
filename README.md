@@ -1,6 +1,6 @@
 # lex-tick
 
-Atomic cognitive processing cycle for brain-modeled agentic AI. Implements the core tick loop with 12 phases, 4 operating modes, and mode transition logic.
+Atomic cognitive processing cycle for brain-modeled agentic AI. Implements the core tick loop with 23 phases, 4 operating modes, and mode transition logic.
 
 ## Overview
 
@@ -13,9 +13,9 @@ The agent operates in one of four modes at any time:
 | Mode | Description | Phases Run | Tick Budget |
 |------|-------------|------------|-------------|
 | `dormant` | No active signals | `memory_consolidation` only | 0.2s |
-| `dormant_active` | Dream cycle — idle consolidation | 8 dream phases | uncapped |
+| `dormant_active` | Dream cycle — idle consolidation | 15 dream phases | uncapped |
 | `sentinel` | Low-activity monitoring | 5 phases | 0.5s |
-| `full_active` | Full cognitive engagement | All 12 phases | 5.0s |
+| `full_active` | Full cognitive engagement | All 23 phases | 5.0s |
 
 Mode transitions are driven by signal salience thresholds and time-since-signal:
 - Any signal: `dormant` -> `sentinel`
@@ -25,20 +25,31 @@ Mode transitions are driven by signal salience thresholds and time-since-signal:
 - No signal for 3600s: `sentinel` -> `dormant`
 - Emergency trigger (`:firmware_violation`, `:extinction_protocol`): immediate `full_active`
 
-## 12 Phases (full_active)
+## 23 Phases (full_active)
 
-1. `sensory_processing` (15% budget)
-2. `emotional_evaluation` (10%)
-3. `memory_retrieval` (20%)
-4. `identity_entropy_check` (5%)
-5. `working_memory_integration` (5%)
-6. `procedural_check` (10%)
-7. `prediction_engine` (15%)
-8. `mesh_interface` (5%)
-9. `gut_instinct` (5%)
-10. `action_selection` (5%)
-11. `memory_consolidation` (5%)
-12. `post_tick_reflection` (5%)
+1. `sensory_processing` (12% budget)
+2. `emotional_evaluation` (8%)
+3. `memory_retrieval` (12%)
+4. `knowledge_retrieval` (5%)
+5. `identity_entropy_check` (4%)
+6. `working_memory_integration` (5%)
+7. `procedural_check` (8%)
+8. `prediction_engine` (12%)
+9. `mesh_interface` (4%)
+10. `social_cognition` (4%)
+11. `theory_of_mind` (4%)
+12. `gut_instinct` (4%)
+13. `action_selection` (4%)
+14. `memory_consolidation` (4%)
+15. `homeostasis_regulation` (5%)
+16. `metacognition`
+17. `default_mode_network`
+18. `prospective_memory`
+19. `inner_speech`
+20. `global_workspace`
+21. `epistemic_vigilance`
+22. `predictive_processing`
+23. `post_tick_reflection` (5%)
 
 ## Installation
 
