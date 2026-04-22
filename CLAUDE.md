@@ -40,9 +40,9 @@ spec/
 
 ### Four Modes
 - `:dormant` - 0.2s budget, only `memory_consolidation` runs
-- `:dormant_active` - uncapped budget, 8 dream phases run (idle consolidation cycle via lex-dream)
+- `:dormant_active` - uncapped budget, 10 dream phases run (idle consolidation cycle via lex-dream)
 - `:sentinel` - 0.5s budget, 5 phases run (sensing + prediction + consolidation)
-- `:full_active` - 5.0s budget, all 12 phases run
+- `:full_active` - 5.0s budget, all 16 phases run
 
 ### Phase Sequencing
 `Constants::MODE_PHASES` maps mode to phase list. `Orchestrator#execute_tick` iterates phases, checking elapsed time against budget, calling `phase_handlers[phase]` if provided. Missing handlers return `{ status: :no_handler }`.
@@ -60,26 +60,30 @@ spec/
 - `DREAM_IDLE_THRESHOLD = 1800` (seconds dormant with no signal before entering dream cycle)
 - `SENTINEL_TO_DREAM_THRESHOLD = 600` (seconds sentinel with no signal before entering dream cycle)
 
-## 12 Active Phases (full_active)
+## 16 Active Phases (full_active)
 
 ```
 PHASES = %i[
-  sensory_processing        # 15% budget
-  emotional_evaluation      # 10%
-  memory_retrieval          # 20%
-  identity_entropy_check    # 5%
+  sensory_processing         # 12% budget
+  emotional_evaluation       # 8%
+  memory_retrieval           # 12%
+  knowledge_retrieval        # 5%
+  identity_entropy_check     # 4%
   working_memory_integration # 5%
-  procedural_check          # 10%
-  prediction_engine         # 15%
-  mesh_interface            # 5%
-  gut_instinct              # 5%
-  action_selection          # 5%
-  memory_consolidation      # 5%
-  post_tick_reflection      # 5%
+  procedural_check           # 8%
+  prediction_engine          # 12%
+  mesh_interface             # 4%
+  social_cognition           # 4%
+  theory_of_mind             # 4%
+  gut_instinct               # 4%
+  action_selection           # 4%
+  memory_consolidation       # 4%
+  homeostasis_regulation     # 5%
+  post_tick_reflection       # 5%
 ]
 ```
 
-## 8 Dream Phases (dormant_active)
+## 10 Dream Phases (dormant_active)
 
 ```
 DREAM_PHASES = %i[
@@ -89,7 +93,9 @@ DREAM_PHASES = %i[
   identity_entropy_check
   agenda_formation
   consolidation_commit
+  knowledge_promotion
   dream_reflection
+  partner_reflection
   dream_narration
 ]
 ```
@@ -100,7 +106,7 @@ All in `Runners::Orchestrator`:
 - `execute_tick(signals:, phase_handlers:)` - run one tick cycle
 - `evaluate_mode_transition(signals:, emergency:)` - check/apply mode transition
 - `tick_status` - returns state hash
-- `set_mode(mode:)` - force a specific mode (validation included)
+- `set_mode(mode:)` - force a specific mode (validation included); sets `@mode_forced` so the next `execute_tick` skips automatic mode evaluation for that one cycle
 
 ## State Object
 

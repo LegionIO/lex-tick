@@ -60,7 +60,9 @@ module Legion
           DORMANT_TICK_BUDGET           = 0.2    # time budget for dormant tick
           EMERGENCY_PROMOTION_BUDGET    = 0.05   # max latency for emergency mode promotion
 
-          # Phase timing budgets (fraction of total tick time)
+          # Phase timing budgets (fraction of total tick time).
+          # Informational only — not enforced by run_phases, which uses the tick-level budget.
+          # Useful as a reference for callers that want to self-limit within a phase handler.
           PHASE_BUDGETS = {
             sensory_processing:         0.12,
             emotional_evaluation:       0.08,

@@ -98,7 +98,9 @@ module Legion
 
             previous = tick_state.mode
             tick_state.transition_to(mode)
-            log.info "[tick] mode forced: #{previous} -> #{mode}"
+            @mode_forced      = true
+            @force_expires_at = Time.now.utc + Helpers::Constants.tick_budget(mode).clamp(0, Helpers::Constants::MAX_TICK_DURATION)
+            log.info "[tick] mode forced: #{previous} -> #{mode} (protected until #{@force_expires_at})"
             { mode: mode }
           end
 
@@ -114,7 +116,15 @@ module Legion
 
             log.debug "[tick] ##{state.tick_count} starting | mode=#{state.mode} signals=#{signals.size} max_salience=#{max_salience.round(2)}"
 
-            evaluate_mode_transition(signals: signals)
+            # Skip automatic mode evaluation for the one tick following a forced set_mode call.
+            # @mode_forced is set by set_mode and cleared here so the force lasts exactly one cycle.
+            if @mode_forced
+              log.debug "[tick] ##{state.tick_count} skipping mode evaluation (mode forced to #{state.mode})"
+              @mode_forced      = false
+              @force_expires_at = nil
+            else
+              evaluate_mode_transition(signals: signals)
+            end
 
             phases = Helpers::Constants.phases_for_mode(state.mode)
             budget = Helpers::Constants.tick_budget(state.mode)
