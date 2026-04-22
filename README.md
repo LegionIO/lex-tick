@@ -1,6 +1,6 @@
 # lex-tick
 
-Atomic cognitive processing cycle for brain-modeled agentic AI. Implements the core tick loop with 23 phases, 4 operating modes, and mode transition logic.
+Atomic cognitive processing cycle for brain-modeled agentic AI. Implements the core tick loop with 16 active phases, 4 operating modes, and mode transition logic.
 
 ## Overview
 
@@ -13,19 +13,20 @@ The agent operates in one of four modes at any time:
 | Mode | Description | Phases Run | Tick Budget |
 |------|-------------|------------|-------------|
 | `dormant` | No active signals | `memory_consolidation` only | 0.2s |
-| `dormant_active` | Dream cycle — idle consolidation | 15 dream phases | uncapped |
+| `dormant_active` | Dream cycle — idle consolidation | 10 dream phases | uncapped |
 | `sentinel` | Low-activity monitoring | 5 phases | 0.5s |
-| `full_active` | Full cognitive engagement | All 23 phases | 5.0s |
+| `full_active` | Full cognitive engagement | All 16 phases | 5.0s |
 
 Mode transitions are driven by signal salience thresholds and time-since-signal:
 - Any signal: `dormant` -> `sentinel`
 - High salience (>= 0.7) or human direct input: `sentinel` -> `full_active`
 - No high-salience signal for 300s: `full_active` -> `sentinel`
+- No signal for 600s while sentinel: `sentinel` -> `dormant_active` (dream cycle)
+- No signal for 3600s while sentinel: `sentinel` -> `dormant`
 - No signal for 1800s while dormant: `dormant` -> `dormant_active` (dream cycle)
-- No signal for 3600s: `sentinel` -> `dormant`
 - Emergency trigger (`:firmware_violation`, `:extinction_protocol`): immediate `full_active`
 
-## 23 Phases (full_active)
+## 16 Active Phases (full_active)
 
 1. `sensory_processing` (12% budget)
 2. `emotional_evaluation` (8%)
@@ -42,14 +43,22 @@ Mode transitions are driven by signal salience thresholds and time-since-signal:
 13. `action_selection` (4%)
 14. `memory_consolidation` (4%)
 15. `homeostasis_regulation` (5%)
-16. `metacognition`
-17. `default_mode_network`
-18. `prospective_memory`
-19. `inner_speech`
-20. `global_workspace`
-21. `epistemic_vigilance`
-22. `predictive_processing`
-23. `post_tick_reflection` (5%)
+16. `post_tick_reflection` (5%)
+
+Phase budgets are informational — enforcement is at the tick level, not per-phase.
+
+## 10 Dream Phases (dormant_active)
+
+1. `memory_audit`
+2. `association_walk`
+3. `contradiction_resolution`
+4. `identity_entropy_check`
+5. `agenda_formation`
+6. `consolidation_commit`
+7. `knowledge_promotion`
+8. `dream_reflection`
+9. `partner_reflection`
+10. `dream_narration`
 
 ## Installation
 
@@ -77,7 +86,7 @@ result = Legion::Extensions::Tick::Runners::Orchestrator.execute_tick(
   }
 )
 
-# Check mode
+# Result shape
 result[:mode]            # => :full_active
 result[:tick_number]     # => 1
 result[:phases_executed] # => [:sensory_processing, ..., :post_tick_reflection]
@@ -86,6 +95,7 @@ result[:elapsed]         # => 0.001
 # Check/set mode
 Legion::Extensions::Tick::Runners::Orchestrator.tick_status
 Legion::Extensions::Tick::Runners::Orchestrator.set_mode(mode: :sentinel)
+# set_mode is sticky for one tick — automatic mode evaluation is skipped on the next execute_tick call
 
 # Force mode transition for emergency
 Legion::Extensions::Tick::Runners::Orchestrator.evaluate_mode_transition(
