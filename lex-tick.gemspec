@@ -9,7 +9,7 @@ Gem::Specification.new do |spec|
   spec.email         = ['matthewdiverson@gmail.com']
 
   spec.summary       = 'LEX Tick'
-  spec.description   = 'Atomic cognitive processing cycle (11 phases, 3 modes) for brain-modeled agentic AI'
+  spec.description   = 'Atomic cognitive processing cycle (16 phases, 4 modes, 10 dream phases) for brain-modeled agentic AI'
   spec.homepage      = 'https://github.com/LegionIO/lex-tick'
   spec.license       = 'MIT'
   spec.required_ruby_version = '>= 3.4'

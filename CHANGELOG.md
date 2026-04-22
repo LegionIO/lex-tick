@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.15] - 2026-04-22
+### Fixed
+- `set_mode` is now sticky for one tick cycle — `evaluate_mode_transition` won't override a forced mode until the next tick
+- PHASES constant corrected to 16 entries (was 23 with duplicates of phases owned by other extensions)
+- DREAM_PHASES corrected to 10 entries (was 15)
+### Changed
+- CLAUDE.md and gemspec description updated to match actual phase/mode counts
+- PHASE_BUDGETS documented as informational (not enforced by run_phases)
+
 ## [0.1.14] - 2026-04-15
 ### Changed
 - Set `mcp_tools?`, `mcp_tools_deferred?`, and `transport_required?` to `false` — internal cognitive pipeline extension
