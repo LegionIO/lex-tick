@@ -11,7 +11,7 @@ Atomic cognitive processing cycle for the LegionIO brain-modeled agentic archite
 ## Gem Info
 
 - **Gem name**: `lex-tick`
-- **Version**: `0.1.15`
+- **Version**: `0.1.16`
 - **Module**: `Legion::Extensions::Tick`
 - **Ruby**: `>= 3.4`
 - **License**: MIT
@@ -40,7 +40,7 @@ spec/
 | Mode | Tick Budget | Phases Run | Notes |
 |------|------------|-----------|-------|
 | `:dormant` | 0.2s | `memory_consolidation` only | Minimal processing |
-| `:dormant_active` | uncapped | 10 dream phases | Idle consolidation cycle via lex-dream |
+| `:dormant_active` | 5.0s | 10 dream phases | Bounded idle consolidation cycle via lex-dream |
 | `:sentinel` | 0.5s | 5 phases (sensing + prediction + consolidation) | Low-activity monitoring |
 | `:full_active` | 5.0s | all 16 phases | Full cognitive engagement |
 
@@ -66,6 +66,8 @@ spec/
 - `EMERGENCY_PROMOTION_BUDGET = 0.05`
 - `DREAM_IDLE_THRESHOLD = 1800` (seconds dormant with no signal before entering dream cycle)
 - `SENTINEL_TO_DREAM_THRESHOLD = 600` (seconds sentinel with no signal before entering dream cycle)
+- `DREAM_BACKOFF_INTERVAL = 1800` (seconds after a completed dream before another dream cycle)
+- `DREAM_TICK_BUDGET = 5.0` (seconds for a dormant-active dream tick)
 - `ACTIVE_TIMEOUT = 300` (seconds without high-salience before demotion from full_active)
 - `SENTINEL_TIMEOUT = 3600` (seconds without any signal before demotion to dormant)
 
@@ -148,12 +150,12 @@ All in `Runners::Orchestrator`:
 |------|-----------|----|
 | any | `emergency` in EMERGENCY_TRIGGERS | `:full_active` |
 | `:dormant` | any signal present | `:sentinel` |
-| `:dormant` | no signal for >= 1800s | `:dormant_active` |
+| `:dormant` | no signal for >= 1800s and dream backoff elapsed | `:dormant_active` |
 | `:dormant_active` | salience >= 0.7 or human_direct | `:sentinel` |
-| `:dormant_active` | `dream_complete: true` | `:dormant` |
+| `:dormant_active` | `dream_complete: true`, all dream phases executed, or dream tick deferred | `:dormant` |
 | `:sentinel` | salience >= 0.7 or human_direct | `:full_active` |
-| `:sentinel` | no signal for >= 600s | `:dormant_active` |
 | `:sentinel` | no signal for >= 3600s | `:dormant` |
+| `:sentinel` | no signal for >= 600s and dream backoff elapsed | `:dormant_active` |
 | `:full_active` | no high-salience for >= 300s | `:sentinel` |
 
 ## Integration with Cognitive Architecture

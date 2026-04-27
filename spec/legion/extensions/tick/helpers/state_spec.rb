@@ -60,6 +60,19 @@ RSpec.describe Legion::Extensions::Tick::Helpers::State do
     end
   end
 
+  describe '#record_dream_completed' do
+    it 'updates last_dream_completed_at' do
+      state.record_dream_completed
+      expect(state.last_dream_completed_at).not_to be_nil
+    end
+  end
+
+  describe '#seconds_since_dream_completed' do
+    it 'treats missing dream completion history as eligible for a dream cycle' do
+      expect(state.seconds_since_dream_completed).to eq(Float::INFINITY)
+    end
+  end
+
   describe '#transition_to' do
     it 'changes mode' do
       state.transition_to(:sentinel)
@@ -83,6 +96,7 @@ RSpec.describe Legion::Extensions::Tick::Helpers::State do
       h = state.to_h
       expect(h).to have_key(:mode)
       expect(h).to have_key(:tick_count)
+      expect(h).to have_key(:last_dream_completed_at)
       expect(h).to have_key(:phases_completed)
     end
   end

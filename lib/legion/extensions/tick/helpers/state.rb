@@ -5,7 +5,7 @@ module Legion
     module Tick
       module Helpers
         class State
-          attr_reader :mode, :tick_count, :last_signal_at, :last_high_salience_at,
+          attr_reader :mode, :tick_count, :last_signal_at, :last_high_salience_at, :last_dream_completed_at,
                       :phase_results, :current_phase, :mode_history
 
           def initialize(mode: :dormant)
@@ -13,6 +13,7 @@ module Legion
             @tick_count = 0
             @last_signal_at = nil
             @last_high_salience_at = nil
+            @last_dream_completed_at = nil
             @phase_results = {}
             @current_phase = nil
             @mode_history = [{ mode: mode, at: Time.now.utc }]
@@ -44,6 +45,10 @@ module Legion
             @mode_history.shift while @mode_history.size > 50
           end
 
+          def record_dream_completed
+            @last_dream_completed_at = Time.now.utc
+          end
+
           def seconds_since_signal
             return 0.0 unless @last_signal_at
 
@@ -56,14 +61,21 @@ module Legion
             Time.now.utc - @last_high_salience_at
           end
 
+          def seconds_since_dream_completed
+            return Float::INFINITY unless @last_dream_completed_at
+
+            Time.now.utc - @last_dream_completed_at
+          end
+
           def to_h
             {
-              mode:                  @mode,
-              tick_count:            @tick_count,
-              current_phase:         @current_phase,
-              last_signal_at:        @last_signal_at,
-              last_high_salience_at: @last_high_salience_at,
-              phases_completed:      @phase_results.keys
+              mode:                    @mode,
+              tick_count:              @tick_count,
+              current_phase:           @current_phase,
+              last_signal_at:          @last_signal_at,
+              last_high_salience_at:   @last_high_salience_at,
+              last_dream_completed_at: @last_dream_completed_at,
+              phases_completed:        @phase_results.keys
             }
           end
         end

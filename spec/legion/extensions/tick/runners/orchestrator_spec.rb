@@ -67,6 +67,56 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
       result = client.execute_tick(signals: [{ salience: 0.3 }])
       expect(result[:mode]).to eq(:sentinel)
     end
+
+    it 'completes one dormant_active dream cycle and backs off to dormant' do
+      client.set_mode(mode: :dormant_active)
+
+      result = client.execute_tick
+
+      expect(result[:phases_executed]).to eq(Legion::Extensions::Tick::Helpers::Constants::DREAM_PHASES)
+      expect(result[:mode]).to eq(:dormant)
+      expect(client.tick_status[:last_dream_completed_at]).not_to be_nil
+    end
+
+    it 'does not immediately restart a completed dream cycle on the next heartbeat' do
+      state = client.send(:tick_state)
+      allow(state).to receive(:seconds_since_signal).and_return(1801.0)
+
+      client.set_mode(mode: :dormant_active)
+      client.execute_tick
+      result = client.execute_tick
+
+      expect(result[:mode]).to eq(:dormant)
+      expect(result[:phases_executed]).to eq([:memory_consolidation])
+    end
+
+    it 'backs off to dormant when a dream phase fails' do
+      client.set_mode(mode: :dormant_active)
+
+      result = client.execute_tick(
+        phase_handlers: {
+          dream_narration: ->(**) { { status: :error } }
+        }
+      )
+
+      expect(result[:mode]).to eq(:dormant)
+      expect(result[:results][:dream_narration][:status]).to eq(:error)
+      expect(client.tick_status[:last_dream_completed_at]).not_to be_nil
+    end
+
+    it 'backs off to dormant when the dream tick budget is exhausted before all phases run' do
+      constants = Legion::Extensions::Tick::Helpers::Constants
+      allow(constants).to receive(:tick_budget).and_call_original
+      allow(constants).to receive(:tick_budget).with(:dormant_active).and_return(0.0)
+
+      client.set_mode(mode: :dormant_active)
+      result = client.execute_tick
+
+      expect(result[:mode]).to eq(:dormant)
+      expect(result[:phases_executed]).to be_empty
+      expect(result[:phases_skipped]).to eq(constants::DREAM_PHASES)
+      expect(client.tick_status[:last_dream_completed_at]).not_to be_nil
+    end
   end
 
   describe '#evaluate_mode_transition' do
@@ -138,6 +188,7 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
         result = client.evaluate_mode_transition(dream_complete: true)
         expect(result[:transitioned]).to be true
         expect(result[:new_mode]).to eq(:dormant)
+        expect(client.tick_status[:last_dream_completed_at]).not_to be_nil
       end
 
       it 'stays dormant_active when no signals and dream not complete' do
@@ -145,6 +196,29 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
         result = client.evaluate_mode_transition
         expect(result[:transitioned]).to be false
         expect(result[:current_mode]).to eq(:dormant_active)
+      end
+
+      it 'keeps dormant backed off after a completed dream cycle' do
+        state = client.send(:tick_state)
+        state.record_dream_completed
+        allow(state).to receive(:seconds_since_signal).and_return(1801.0)
+
+        result = client.evaluate_mode_transition
+
+        expect(result[:transitioned]).to be false
+        expect(result[:current_mode]).to eq(:dormant)
+      end
+
+      it 'allows dormant_active again after dream backoff elapses' do
+        state = client.send(:tick_state)
+        state.record_dream_completed
+        allow(state).to receive(:seconds_since_signal).and_return(1801.0)
+        allow(state).to receive(:seconds_since_dream_completed).and_return(1801.0)
+
+        result = client.evaluate_mode_transition
+
+        expect(result[:transitioned]).to be true
+        expect(result[:new_mode]).to eq(:dormant_active)
       end
     end
 
