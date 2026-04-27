@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.16] - 2026-04-27
+### Fixed
+- Bound `dormant_active` dream execution to a completed cycle, returning to `dormant` afterward instead of rerunning every heartbeat
+- Add finite dream tick budget and completion backoff before another idle dream cycle can start
+
 ## [0.1.15] - 2026-04-22
 ### Fixed
 - `set_mode` is now sticky for one tick cycle — `evaluate_mode_transition` won't override a forced mode until the next tick

@@ -13,7 +13,7 @@ The agent operates in one of four modes at any time:
 | Mode | Description | Phases Run | Tick Budget |
 |------|-------------|------------|-------------|
 | `dormant` | No active signals | `memory_consolidation` only | 0.2s |
-| `dormant_active` | Dream cycle — idle consolidation | 10 dream phases | uncapped |
+| `dormant_active` | Dream cycle — idle consolidation | 10 dream phases, then backoff | 5.0s |
 | `sentinel` | Low-activity monitoring | 5 phases | 0.5s |
 | `full_active` | Full cognitive engagement | All 16 phases | 5.0s |
 
@@ -21,9 +21,10 @@ Mode transitions are driven by signal salience thresholds and time-since-signal:
 - Any signal: `dormant` -> `sentinel`
 - High salience (>= 0.7) or human direct input: `sentinel` -> `full_active`
 - No high-salience signal for 300s: `full_active` -> `sentinel`
-- No signal for 600s while sentinel: `sentinel` -> `dormant_active` (dream cycle)
+- No signal for 600s while sentinel and dream backoff elapsed: `sentinel` -> `dormant_active` (dream cycle)
 - No signal for 3600s while sentinel: `sentinel` -> `dormant`
-- No signal for 1800s while dormant: `dormant` -> `dormant_active` (dream cycle)
+- No signal for 1800s while dormant and dream backoff elapsed: `dormant` -> `dormant_active` (dream cycle)
+- Completed dream cycle: `dormant_active` -> `dormant`, with backoff before another dream cycle
 - Emergency trigger (`:firmware_violation`, `:extinction_protocol`): immediate `full_active`
 
 ## 16 Active Phases (full_active)

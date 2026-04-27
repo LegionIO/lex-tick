@@ -55,7 +55,9 @@ module Legion
           SENTINEL_TIMEOUT              = 3600   # seconds without any signal before demotion to dormant
           DREAM_IDLE_THRESHOLD          = 1800   # seconds dormant with no signal before entering dream cycle
           SENTINEL_TO_DREAM_THRESHOLD   = 600    # seconds sentinel with no signal before entering dream cycle
+          DREAM_BACKOFF_INTERVAL        = 1800   # seconds after a completed dream before another dream cycle
           MAX_TICK_DURATION             = 5.0    # hard ceiling for full active tick (seconds)
+          DREAM_TICK_BUDGET             = 5.0    # hard ceiling for dormant-active dream tick (seconds)
           SENTINEL_TICK_BUDGET          = 0.5    # time budget for sentinel tick
           DORMANT_TICK_BUDGET           = 0.2    # time budget for dormant tick
           EMERGENCY_PROMOTION_BUDGET    = 0.05   # max latency for emergency mode promotion
@@ -95,7 +97,7 @@ module Legion
           def tick_budget(mode)
             case mode
             when :dormant        then DORMANT_TICK_BUDGET
-            when :dormant_active then Float::INFINITY
+            when :dormant_active then DREAM_TICK_BUDGET
             when :sentinel       then SENTINEL_TICK_BUDGET
             else                      MAX_TICK_DURATION
             end

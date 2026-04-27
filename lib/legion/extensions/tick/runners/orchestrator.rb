@@ -25,7 +25,7 @@ module Legion
             end
           end
 
-          def evaluate_mode_transition(signals: [], emergency: nil, dream_complete: false, **) # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+          def evaluate_mode_transition(signals: [], emergency: nil, dream_complete: false, **) # rubocop:disable Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
             state = tick_state
             previous_mode = state.mode
 
@@ -44,7 +44,7 @@ module Legion
                        when :dormant
                          if signals.any?
                            :sentinel
-                         elsif state.seconds_since_signal >= Helpers::Constants::DREAM_IDLE_THRESHOLD
+                         elsif state.seconds_since_signal >= Helpers::Constants::DREAM_IDLE_THRESHOLD && dream_backoff_elapsed?(state)
                            :dormant_active
                          else
                            :dormant
@@ -53,6 +53,7 @@ module Legion
                          if max_salience >= Helpers::Constants::HIGH_SALIENCE_THRESHOLD || has_human
                            :sentinel
                          elsif dream_complete
+                           state.record_dream_completed
                            :dormant
                          else
                            :dormant_active
@@ -60,10 +61,11 @@ module Legion
                        when :sentinel
                          if has_human || max_salience >= Helpers::Constants::HIGH_SALIENCE_THRESHOLD
                            :full_active
-                         elsif state.seconds_since_signal >= Helpers::Constants::SENTINEL_TO_DREAM_THRESHOLD
-                           :dormant_active
                          elsif state.seconds_since_signal >= Helpers::Constants::SENTINEL_TIMEOUT
                            :dormant
+                         elsif state.seconds_since_signal >= Helpers::Constants::SENTINEL_TO_DREAM_THRESHOLD &&
+                               dream_backoff_elapsed?(state)
+                           :dormant_active
                          else
                            :sentinel
                          end
@@ -137,6 +139,7 @@ module Legion
               context:        context
             }
             results = run_phases(phases, state, ctx)
+            finish_dream_cycle(state, phases, results)
 
             total_elapsed = Time.now.utc - start_time
             skipped = phases - results.keys
@@ -187,6 +190,28 @@ module Legion
                       "elapsed=#{(total_elapsed * 1000).round(1)}ms#{skipped_suffix}"
           end
 
+          def finish_dream_cycle(state, phases, results)
+            return unless state.mode == :dormant_active
+            return unless phases == Helpers::Constants::DREAM_PHASES
+
+            skipped = phases - results.keys
+            failed = failed_dream_phases(results)
+            state.record_dream_completed
+            state.transition_to(:dormant)
+            if skipped.empty? && failed.empty?
+              log.info '[tick] dream cycle complete; backing off to dormant'
+            else
+              log.info "[tick] dream cycle deferred; backing off to dormant skipped=#{skipped} failed=#{failed}"
+            end
+          end
+
+          def failed_dream_phases(results)
+            results.each_with_object([]) do |(phase, result), failed|
+              status = result.is_a?(Hash) ? result[:status] : nil
+              failed << phase if %i[error failed failure timeout].include?(status)
+            end
+          end
+
           def full_active_cooldown_elapsed(state)
             if state.last_high_salience_at
               state.seconds_since_high_salience
@@ -195,6 +220,10 @@ module Legion
             else
               Helpers::Constants::ACTIVE_TIMEOUT
             end
+          end
+
+          def dream_backoff_elapsed?(state)
+            state.seconds_since_dream_completed >= Helpers::Constants::DREAM_BACKOFF_INTERVAL
           end
 
           def tick_state

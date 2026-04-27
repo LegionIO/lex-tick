@@ -87,8 +87,8 @@ RSpec.describe Legion::Extensions::Tick::Helpers::Constants do
   end
 
   describe '.tick_budget' do
-    it 'returns Float::INFINITY for dormant_active' do
-      expect(described_class.tick_budget(:dormant_active)).to eq(Float::INFINITY)
+    it 'returns DREAM_TICK_BUDGET for dormant_active' do
+      expect(described_class.tick_budget(:dormant_active)).to eq(described_class::DREAM_TICK_BUDGET)
     end
   end
 
@@ -99,6 +99,14 @@ RSpec.describe Legion::Extensions::Tick::Helpers::Constants do
 
     it 'defines SENTINEL_TO_DREAM_THRESHOLD as 600' do
       expect(described_class::SENTINEL_TO_DREAM_THRESHOLD).to eq(600)
+    end
+
+    it 'defines DREAM_BACKOFF_INTERVAL as 1800' do
+      expect(described_class::DREAM_BACKOFF_INTERVAL).to eq(1800)
+    end
+
+    it 'defines DREAM_TICK_BUDGET as finite' do
+      expect(described_class::DREAM_TICK_BUDGET).to eq(5.0)
     end
   end
 end
