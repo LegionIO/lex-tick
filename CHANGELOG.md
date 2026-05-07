@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.17] - 2026-05-07
+### Fixed
+- Removed the unused forced-mode expiration instance variable while preserving one-cycle forced mode behavior.
+
 ## [0.1.16] - 2026-04-27
 ### Fixed
 - Bound `dormant_active` dream execution to a completed cycle, returning to `dormant` afterward instead of rerunning every heartbeat
