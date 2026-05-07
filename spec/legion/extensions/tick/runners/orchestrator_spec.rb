@@ -255,6 +255,12 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
       expect(result[:mode]).to eq(:full_active)
     end
 
+    it 'does not expose an unused force expiration timestamp' do
+      client.set_mode(mode: :full_active)
+
+      expect(client.instance_variable_defined?(:@force_expires_at)).to be false
+    end
+
     it 'rejects invalid mode' do
       result = client.set_mode(mode: :invalid)
       expect(result[:error]).to eq(:invalid_mode)
