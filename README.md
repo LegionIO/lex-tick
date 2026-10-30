@@ -1,10 +1,10 @@
 # lex-tick
 
-Atomic cognitive processing cycle for brain-modeled agentic AI. Implements the core tick loop with 16 active phases, 4 operating modes, and mode transition logic.
+Atomic cognitive processing cycle for brain-modeled agentic AI. Implements 16 default active phases, 4 operating modes, mode transitions, and explicitly enabled optional work.
 
 ## Overview
 
-`lex-tick` is the central orchestrator of the LegionIO cognitive architecture. Every cognitive action the agent performs happens within a tick. A tick advances the agent's internal state, runs the appropriate phases for the current mode, and produces a result record.
+`lex-tick` schedules bounded cognitive phase handlers and returns their results. Request/event processing and extension-owned background maintenance remain outside the tick; loading a handler does not schedule it.
 
 ## Operating Modes
 
@@ -51,7 +51,7 @@ Execution budgets use a monotonic clock and stop starting phases once the
 mode's budget is exhausted; an already-running handler is not forcibly
 interrupted. Corrected promotion runs the existing 16-phase, 5-second-budget
 active schedule instead of the 5-phase sentinel schedule for the first human
-interaction. No optional phases or new background schedules are enabled.
+interaction. Optional work shares that budget and is disabled by default.
 
 ## 10 Dream Phases (dormant_active)
 
@@ -65,6 +65,57 @@ interaction. No optional phases or new background schedules are enabled.
 8. `dream_reflection`
 9. `partner_reflection`
 10. `dream_narration`
+
+## Optional phases
+
+Version 0.1.18 adds `execute_tick(enabled_optional_phases: [])`. Existing callers
+retain exactly their existing schedules, even if they supply additional handlers.
+Only these opt-ins are supported:
+
+| Phase | Mode and placement | Required preceding result |
+|---|---|---|
+| `global_workspace` | `full_active`, after gut instinct and before action selection | Successful sensory processing |
+| `metacognition` | `full_active`, after post-tick reflection | Successful reflection |
+
+```ruby
+result = client.execute_tick(
+  signals: signals,
+  phase_handlers: handlers,
+  enabled_optional_phases: %i[global_workspace metacognition]
+)
+```
+
+Unknown names or a non-array opt-in raise `ArgumentError` before tick state
+advances. Repeated names run once. An opt-in does not override the operating
+mode. Missing optional handlers return `status: :unavailable`; failed, missing,
+or deferred prerequisite results return `status: :deferred` without invoking
+the dependent handler. The caller remains responsible for domain readiness:
+submit real candidates to the same workspace that competes, consume its result,
+and do not supply fabricated claim, belief, or intention IDs.
+
+`phases_scheduled` is the selected schedule, `phases_executed` contains the
+visited phases (including unavailable/no-handler results), and `phases_skipped`
+contains phases not visited because the shared tick budget expired. Inspect each
+phase's result status rather than treating a visited phase as completed work.
+
+The other currently unscheduled GAIA mappings are deliberately **not** tick
+opt-ins:
+
+| Mapping | Activation owner / reason |
+|---|---|
+| `curiosity_execution` | Explicit background inquiry; performs LLM calls and knowledge writes |
+| `dream_cycle` | Existing imagination dream actor; do not duplicate its maintenance cycle |
+| `creativity_tick` | Background idea maintenance; no verified tick consumer |
+| `lucid_dream` | Request/event supplying a real theme and content |
+| `epistemic_vigilance` | Claim submission/review with a real source and claim ID |
+| `predictive_processing` | Prediction/outcome event pair with a meaningful domain and consumer |
+| `free_energy` | Belief observation event; stale-state maintenance remains actor-owned |
+| `default_mode_network` | Existing idle-aware background lifecycle, not unconditional thought generation |
+| `prospective_memory` | Intention lifecycle events; monitoring is not task execution |
+| `inner_speech` | Meaningful narration event; decay remains actor-owned |
+
+Consumers must require 0.1.18 or verify the explicit keyword before opting in.
+Older versions accept arbitrary context keywords and would silently ignore it.
 
 ## Installation
 

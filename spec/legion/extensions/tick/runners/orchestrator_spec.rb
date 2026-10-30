@@ -174,6 +174,103 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
       expect(result[:elapsed]).to be >= 0.0
       expect(result[:elapsed]).to be < 1.0
     end
+
+    it 'does not count an empty dream result as a completed cycle' do
+      client.set_mode(mode: :dormant_active)
+      client.execute_tick(phase_handlers: dream_handlers.merge(memory_audit: ->(**) {}))
+
+      expect(client.tick_status[:last_dream_completed_at]).to be_nil
+      expect(client.tick_status[:last_dream_deferred_at]).not_to be_nil
+    end
+  end
+
+  describe 'optional phase scheduling' do
+    let(:signals) { [{ source_type: :human_direct, salience: 0.1 }] }
+
+    it 'does not activate optional work merely because a handler is available' do
+      effects = []
+      client.execute_tick(signals: signals, phase_handlers: { metacognition: ->(**) { effects << :snapshot } })
+
+      expect(effects).to be_empty
+    end
+
+    it 'makes workspace selection available to the subsequent action decision' do
+      handlers = {
+        sensory_processing: ->(**) { { candidates: [{ content: 'urgent request', salience: 0.9 }] } },
+        global_workspace:   lambda { |prior_results:, **|
+          { selected: prior_results[:sensory_processing][:candidates].max_by { |candidate| candidate[:salience] } }
+        },
+        action_selection:   ->(prior_results:, **) { { decision: prior_results.dig(:global_workspace, :selected, :content) } }
+      }
+      result = client.execute_tick(signals: signals, phase_handlers: handlers, enabled_optional_phases: [:global_workspace])
+
+      expect(result.dig(:results, :action_selection, :decision)).to eq('urgent request')
+    end
+
+    it 'runs metacognition once after reflection even if the opt-in is repeated' do
+      observations = []
+      handlers = {
+        post_tick_reflection: ->(**) { { cognitive_health: 0.8 } },
+        metacognition:        lambda { |prior_results:, **|
+          observations << prior_results.dig(:post_tick_reflection, :cognitive_health)
+          { status: :completed }
+        }
+      }
+      client.execute_tick(signals: signals, phase_handlers: handlers, enabled_optional_phases: %i[metacognition metacognition])
+
+      expect(observations).to eq([0.8])
+    end
+
+    it 'does not run full-active optional work during a forced sentinel tick' do
+      effects = []
+      client.set_mode(mode: :sentinel)
+      result = client.execute_tick(signals: signals, enabled_optional_phases: [:metacognition],
+                                   phase_handlers: { metacognition: ->(**) { effects << :snapshot } })
+
+      expect(effects).to be_empty
+      expect(result[:phases_scheduled]).not_to include(:metacognition)
+    end
+
+    it 'reports an unavailable optional capability when its handler is absent' do
+      result = client.execute_tick(signals: signals, enabled_optional_phases: [:metacognition])
+
+      expect(result.dig(:results, :metacognition)).to include(status: :unavailable, reason: :missing_handler)
+    end
+
+    it 'defers optional work rather than consuming a failed prerequisite' do
+      effects = []
+      result = client.execute_tick(
+        signals: signals, enabled_optional_phases: [:metacognition],
+        phase_handlers: {
+          post_tick_reflection: ->(**) { { success: false } },
+          metacognition:        ->(**) { effects << :snapshot }
+        }
+      )
+
+      expect(effects).to be_empty
+      expect(result.dig(:results, :metacognition)).to include(status: :deferred, phases: [:post_tick_reflection])
+    end
+
+    it 'rejects unknown phase names before advancing tick state' do
+      expect { client.execute_tick(enabled_optional_phases: [:dream_cycle]) }.to raise_error(ArgumentError)
+      expect(client.tick_status[:tick_count]).to eq(0)
+    end
+
+    it 'rejects a scalar opt-in instead of silently ignoring it' do
+      expect { client.execute_tick(enabled_optional_phases: :metacognition) }.to raise_error(ArgumentError)
+      expect(client.tick_status[:tick_count]).to eq(0)
+    end
+
+    it 'reports budget-skipped optional work without invoking it' do
+      allow(Legion::Extensions::Tick::Helpers::Constants).to receive(:tick_budget).and_return(0.0)
+      effects = []
+      result = client.execute_tick(signals: signals, enabled_optional_phases: [:metacognition],
+                                   phase_handlers: { metacognition: ->(**) { effects << :snapshot } })
+
+      expect(effects).to be_empty
+      expect(result[:phases_skipped]).to include(:metacognition)
+      expect(result[:results]).not_to have_key(:metacognition)
+    end
   end
 
   describe '#evaluate_mode_transition' do
