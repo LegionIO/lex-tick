@@ -1,10 +1,10 @@
 # lex-tick
 
-Atomic cognitive processing cycle for brain-modeled agentic AI. Implements the core tick loop with 16 active phases, 4 operating modes, and mode transition logic.
+Atomic cognitive processing cycle for brain-modeled agentic AI. Implements 16 default active phases, 4 operating modes, mode transitions, and explicitly enabled optional work.
 
 ## Overview
 
-`lex-tick` is the central orchestrator of the LegionIO cognitive architecture. Every cognitive action the agent performs happens within a tick. A tick advances the agent's internal state, runs the appropriate phases for the current mode, and produces a result record.
+`lex-tick` schedules bounded cognitive phase handlers and returns their results. Request/event processing and extension-owned background maintenance remain outside the tick; loading a handler does not schedule it.
 
 ## Operating Modes
 
@@ -18,13 +18,13 @@ The agent operates in one of four modes at any time:
 | `full_active` | Full cognitive engagement | All 16 phases | 5.0s |
 
 Mode transitions are driven by signal salience thresholds and time-since-signal:
-- Any signal: `dormant` -> `sentinel`
-- High salience (>= 0.7) or human direct input: `sentinel` -> `full_active`
-- No high-salience signal for 300s: `full_active` -> `sentinel`
+- Low-salience non-human signal: `dormant` -> `sentinel`
+- High salience (>= 0.7) or human direct input: `dormant`, `dormant_active`, or `sentinel` -> `full_active` on that interaction
+- No high-salience or human signal for 300s: `full_active` -> `sentinel`; an empty heartbeat alone does not demote
 - No signal for 600s while sentinel and dream backoff elapsed: `sentinel` -> `dormant_active` (dream cycle)
 - No signal for 3600s while sentinel: `sentinel` -> `dormant`
 - No signal for 1800s while dormant and dream backoff elapsed: `dormant` -> `dormant_active` (dream cycle)
-- Completed dream cycle: `dormant_active` -> `dormant`, with backoff before another dream cycle
+- Finished or deferred dream cycle: `dormant_active` -> `dormant`, with backoff before another dream cycle
 - Emergency trigger (`:firmware_violation`, `:extinction_protocol`): immediate `full_active`
 
 ## 16 Active Phases (full_active)
@@ -47,6 +47,11 @@ Mode transitions are driven by signal salience thresholds and time-since-signal:
 16. `post_tick_reflection` (5%)
 
 Phase budgets are informational — enforcement is at the tick level, not per-phase.
+Execution budgets use a monotonic clock and stop starting phases once the
+mode's budget is exhausted; an already-running handler is not forcibly
+interrupted. Corrected promotion runs the existing 16-phase, 5-second-budget
+active schedule instead of the 5-phase sentinel schedule for the first human
+interaction. Optional work shares that budget and is disabled by default.
 
 ## 10 Dream Phases (dormant_active)
 
@@ -61,6 +66,57 @@ Phase budgets are informational — enforcement is at the tick level, not per-ph
 9. `partner_reflection`
 10. `dream_narration`
 
+## Optional phases
+
+Version 0.1.18 adds `execute_tick(enabled_optional_phases: [])`. Existing callers
+retain exactly their existing schedules, even if they supply additional handlers.
+Only these opt-ins are supported:
+
+| Phase | Mode and placement | Required preceding result |
+|---|---|---|
+| `global_workspace` | `full_active`, after gut instinct and before action selection | Successful sensory processing |
+| `metacognition` | `full_active`, after post-tick reflection | Successful reflection |
+
+```ruby
+result = client.execute_tick(
+  signals: signals,
+  phase_handlers: handlers,
+  enabled_optional_phases: %i[global_workspace metacognition]
+)
+```
+
+Unknown names or a non-array opt-in raise `ArgumentError` before tick state
+advances. Repeated names run once. An opt-in does not override the operating
+mode. Missing optional handlers return `status: :unavailable`; failed, missing,
+or deferred prerequisite results return `status: :deferred` without invoking
+the dependent handler. The caller remains responsible for domain readiness:
+submit real candidates to the same workspace that competes, consume its result,
+and do not supply fabricated claim, belief, or intention IDs.
+
+`phases_scheduled` is the selected schedule, `phases_executed` contains the
+visited phases (including unavailable/no-handler results), and `phases_skipped`
+contains phases not visited because the shared tick budget expired. Inspect each
+phase's result status rather than treating a visited phase as completed work.
+
+The other currently unscheduled GAIA mappings are deliberately **not** tick
+opt-ins:
+
+| Mapping | Activation owner / reason |
+|---|---|
+| `curiosity_execution` | Explicit background inquiry; performs LLM calls and knowledge writes |
+| `dream_cycle` | Existing imagination dream actor; do not duplicate its maintenance cycle |
+| `creativity_tick` | Background idea maintenance; no verified tick consumer |
+| `lucid_dream` | Request/event supplying a real theme and content |
+| `epistemic_vigilance` | Claim submission/review with a real source and claim ID |
+| `predictive_processing` | Prediction/outcome event pair with a meaningful domain and consumer |
+| `free_energy` | Belief observation event; stale-state maintenance remains actor-owned |
+| `default_mode_network` | Existing idle-aware background lifecycle, not unconditional thought generation |
+| `prospective_memory` | Intention lifecycle events; monitoring is not task execution |
+| `inner_speech` | Meaningful narration event; decay remains actor-owned |
+
+Consumers must require 0.1.18 or verify the explicit keyword before opting in.
+Older versions accept arbitrary context keywords and would silently ignore it.
+
 ## Installation
 
 Add to your Gemfile:
@@ -74,8 +130,10 @@ gem 'lex-tick'
 ```ruby
 require 'legion/extensions/tick'
 
+client = Legion::Extensions::Tick::Client.new
+
 # Execute a tick with signals and phase handlers
-result = Legion::Extensions::Tick::Runners::Orchestrator.execute_tick(
+result = client.execute_tick(
   signals: [{ salience: 0.8, source_type: :human_direct, content: "Hello" }],
   phase_handlers: {
     sensory_processing: ->(state:, signals:, prior_results:) {
@@ -94,12 +152,12 @@ result[:phases_executed] # => [:sensory_processing, ..., :post_tick_reflection]
 result[:elapsed]         # => 0.001
 
 # Check/set mode
-Legion::Extensions::Tick::Runners::Orchestrator.tick_status
-Legion::Extensions::Tick::Runners::Orchestrator.set_mode(mode: :sentinel)
+client.tick_status
+client.set_mode(mode: :sentinel)
 # set_mode is sticky for one tick — automatic mode evaluation is skipped on the next execute_tick call
 
 # Force mode transition for emergency
-Legion::Extensions::Tick::Runners::Orchestrator.evaluate_mode_transition(
+client.evaluate_mode_transition(
   emergency: :firmware_violation
 )
 ```
@@ -111,6 +169,8 @@ The `State` object (`Helpers::State`) persists across ticks and tracks:
 - `mode` - current operating mode
 - `tick_count` - total ticks executed
 - `last_signal_at` / `last_high_salience_at` - timestamps driving mode decay
+- `last_dream_completed_at` - most recent fully successful dream cycle
+- `last_dream_deferred_at` - most recent incomplete, failed, unhandled, or interrupted dream; both timestamps enforce dream backoff
 - `phase_results` - results from the current tick's phases
 - `mode_history` - last 50 mode transitions with timestamps
 

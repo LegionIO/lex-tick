@@ -12,16 +12,19 @@ module Legion
             false
           end
 
-          def execute_tick(signals: [], phase_handlers: {}, **context)
+          def execute_tick(signals: [], phase_handlers: {}, enabled_optional_phases: [], **context)
+            Helpers::Constants.validate_optional_phases(enabled_optional_phases)
             if defined?(Legion::Telemetry::OpenInference)
               state = tick_state
               Legion::Telemetry::OpenInference.agent_span(
                 name: "tick-#{state.tick_count + 1}", mode: state.mode,
-                phase_count: Helpers::Constants.phases_for_mode(state.mode).size,
+                phase_count: Helpers::Constants.phases_for_mode(state.mode, enabled_optional_phases: enabled_optional_phases).size,
                 budget_ms: (Helpers::Constants.tick_budget(state.mode) * 1000).round
-              ) { |_span| execute_tick_impl(signals: signals, phase_handlers: phase_handlers, **context) }
+              ) do |_span|
+                execute_tick_impl(signals: signals, phase_handlers: phase_handlers, enabled_optional_phases: enabled_optional_phases, **context)
+              end
             else
-              execute_tick_impl(signals: signals, phase_handlers: phase_handlers, **context)
+              execute_tick_impl(signals: signals, phase_handlers: phase_handlers, enabled_optional_phases: enabled_optional_phases, **context)
             end
           end
 
@@ -42,7 +45,9 @@ module Legion
 
             new_mode = case state.mode
                        when :dormant
-                         if signals.any?
+                         if has_human || max_salience >= Helpers::Constants::HIGH_SALIENCE_THRESHOLD
+                           :full_active
+                         elsif signals.any?
                            :sentinel
                          elsif state.seconds_since_signal >= Helpers::Constants::DREAM_IDLE_THRESHOLD && dream_backoff_elapsed?(state)
                            :dormant_active
@@ -51,7 +56,7 @@ module Legion
                          end
                        when :dormant_active
                          if max_salience >= Helpers::Constants::HIGH_SALIENCE_THRESHOLD || has_human
-                           :sentinel
+                           :full_active
                          elsif dream_complete
                            state.record_dream_completed
                            :dormant
@@ -107,7 +112,7 @@ module Legion
 
           private
 
-          def execute_tick_impl(signals:, phase_handlers:, **context)
+          def execute_tick_impl(signals:, phase_handlers:, enabled_optional_phases:, **context)
             state = tick_state
             state.increment_tick
 
@@ -126,9 +131,9 @@ module Legion
               evaluate_mode_transition(signals: signals)
             end
 
-            phases = Helpers::Constants.phases_for_mode(state.mode)
+            phases = Helpers::Constants.phases_for_mode(state.mode, enabled_optional_phases: enabled_optional_phases)
             budget = Helpers::Constants.tick_budget(state.mode)
-            start_time = Time.now.utc
+            start_time = ::Process.clock_gettime(::Process::CLOCK_MONOTONIC)
             ctx = {
               budget:         budget,
               start_time:     start_time,
@@ -139,18 +144,26 @@ module Legion
             results = run_phases(phases, state, ctx)
             finish_dream_cycle(state, phases, results)
 
-            total_elapsed = Time.now.utc - start_time
+            total_elapsed = ::Process.clock_gettime(::Process::CLOCK_MONOTONIC) - start_time
             skipped = phases - results.keys
             log_tick_complete(state, results, phases, total_elapsed, skipped)
 
             {
-              tick_number:     state.tick_count,
-              mode:            state.mode,
-              phases_executed: results.keys,
-              phases_skipped:  skipped,
-              results:         results,
-              elapsed:         total_elapsed
+              tick_number:      state.tick_count,
+              mode:             state.mode,
+              phases_scheduled: phases,
+              phases_executed:  results.keys,
+              phases_skipped:   skipped,
+              results:          results,
+              elapsed:          total_elapsed
             }
+          rescue StandardError => e
+            log.error "[tick] execution failed: #{e.class}: #{e.message}"
+            if state.mode == :dormant_active
+              state.record_dream_deferred
+              state.transition_to(:dormant)
+            end
+            raise
           end
 
           def run_phases(phases, state, ctx)
@@ -159,7 +172,7 @@ module Legion
             start_time = ctx[:start_time]
             log.debug "[tick] ##{state.tick_count} running #{phases.size} phases with #{budget}s budget"
             phases.each do |phase|
-              elapsed = Time.now.utc - start_time
+              elapsed = ::Process.clock_gettime(::Process::CLOCK_MONOTONIC) - start_time
               if elapsed >= budget
                 log.debug "[tick] ##{state.tick_count} budget exhausted at #{elapsed.round(3)}s, skipping remaining phases"
                 break
@@ -173,12 +186,33 @@ module Legion
           end
 
           def run_single_phase(phase, handler, state, signals, results, **context)
-            phase_start = Time.now.utc
-            result = handler ? handler.call(state: state, signals: signals, prior_results: results, **context) : { status: :no_handler }
-            phase_elapsed = ((Time.now.utc - phase_start) * 1000).round(1)
+            unavailable = optional_phase_unavailable(phase, handler, results)
+
+            phase_start = ::Process.clock_gettime(::Process::CLOCK_MONOTONIC)
+            result = unavailable || if handler
+                                      handler.call(state: state, signals: signals, prior_results: results, **context)
+                                    else
+                                      { status: :no_handler }
+                                    end
+            phase_elapsed = ((::Process.clock_gettime(::Process::CLOCK_MONOTONIC) - phase_start) * 1000).round(1)
             status = result.is_a?(Hash) ? (result[:status] || :ok) : :ok
             log.debug "[tick] ##{state.tick_count} phase=#{phase} status=#{status} (#{phase_elapsed}ms)"
             result
+          end
+
+          def optional_phase_unavailable(phase, handler, results)
+            contract = Helpers::Constants::OPTIONAL_PHASES[phase]
+            return unless contract
+            return { status: :unavailable, reason: :missing_handler } unless handler
+
+            missing = contract[:requires].select do |dependency|
+              result = results[dependency]
+              !result.is_a?(Hash) || result.empty? || result[:success] == false ||
+                Helpers::Constants::INCOMPLETE_PHASE_STATUSES.include?(result[:status])
+            end
+            return if missing.empty?
+
+            { status: :deferred, reason: :missing_prerequisites, phases: missing }
           end
 
           def log_tick_complete(state, results, phases, total_elapsed, skipped)
@@ -194,19 +228,26 @@ module Legion
 
             skipped = phases - results.keys
             failed = failed_dream_phases(results)
-            state.record_dream_completed
             state.transition_to(:dormant)
             if skipped.empty? && failed.empty?
+              state.record_dream_completed
               log.info '[tick] dream cycle complete; backing off to dormant'
             else
+              state.record_dream_deferred
               log.info "[tick] dream cycle deferred; backing off to dormant skipped=#{skipped} failed=#{failed}"
             end
           end
 
           def failed_dream_phases(results)
             results.each_with_object([]) do |(phase, result), failed|
-              status = result.is_a?(Hash) ? result[:status] : nil
-              failed << phase if %i[error failed failure timeout].include?(status)
+              unless result.is_a?(Hash) && !result.empty?
+                failed << phase
+                next
+              end
+
+              status = result[:status]
+              incomplete = Helpers::Constants::INCOMPLETE_PHASE_STATUSES.include?(status)
+              failed << phase if incomplete || result[:success] == false
             end
           end
 
@@ -221,7 +262,8 @@ module Legion
           end
 
           def dream_backoff_elapsed?(state)
-            state.seconds_since_dream_completed >= Helpers::Constants::DREAM_BACKOFF_INTERVAL
+            state.seconds_since_dream_completed >= Helpers::Constants::DREAM_BACKOFF_INTERVAL &&
+              state.seconds_since_dream_deferred >= Helpers::Constants::DREAM_BACKOFF_INTERVAL
           end
 
           def tick_state

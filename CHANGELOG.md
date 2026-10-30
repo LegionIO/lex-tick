@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.18] - 2026-10-29
+### Added
+- Explicit `enabled_optional_phases:` scheduling for `global_workspace` before action selection and `metacognition` after reflection, with unchanged defaults, mode restrictions, prerequisite checks, and budget accounting.
+- Expose the selected schedule as `phases_scheduled`; report missing optional handlers as unavailable and unsuccessful prerequisites as deferred.
+### Fixed
+- Promote dormant and dreaming agents directly to full-active processing for the first human or high-salience signal, retaining cooldowns and one-cycle overrides.
+- Distinguish successful dreams from deferred, failed, unhandled, or budget-skipped dreams; expose `last_dream_deferred_at` and preserve backoff without claiming completion.
+- Back off interrupted dreams before propagating handler exceptions, avoiding immediate replay of earlier effects.
+- Measure execution budgets and elapsed durations with the monotonic clock. Existing phase schedules and budgets are unchanged.
+- Load the standalone client's logging dependency without relying on framework boot or spec helpers.
+- Treat empty dream results as incomplete instead of recording a successful cycle.
+
 ## [0.1.17] - 2026-05-07
 ### Fixed
 - Removed the unused forced-mode expiration instance variable while preserving one-cycle forced mode behavior.

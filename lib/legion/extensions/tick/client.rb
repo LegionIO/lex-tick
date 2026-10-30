@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'legion/logging'
 require 'legion/extensions/tick/helpers/constants'
 require 'legion/extensions/tick/helpers/state'
 require 'legion/extensions/tick/runners/orchestrator'
@@ -8,6 +9,7 @@ module Legion
   module Extensions
     module Tick
       class Client
+        include Legion::Logging::Helper
         include Runners::Orchestrator
 
         def initialize(mode: :dormant, **)

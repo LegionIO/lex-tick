@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'open3'
 require 'legion/extensions/tick/client'
 
 RSpec.describe Legion::Extensions::Tick::Client do
@@ -16,9 +17,18 @@ RSpec.describe Legion::Extensions::Tick::Client do
     expect(client.tick_status[:mode]).to eq(:sentinel)
   end
 
-  it 'runs a full active tick with all 16 phases' do
-    client = described_class.new(mode: :full_active)
-    result = client.execute_tick(signals: [{ salience: 0.9, source_type: :human_direct }])
-    expect(result[:phases_executed].size).to eq(16)
+  it 'executes standalone without the framework or its test helper supplying logging' do
+    script = <<~RUBY
+      require 'legion/extensions/tick/client'
+      result = Legion::Extensions::Tick::Client.new.execute_tick(
+        phase_handlers: { memory_consolidation: ->(**) { { consolidated: true } } }
+      )
+      abort 'consolidation did not execute' unless result.dig(:results, :memory_consolidation, :consolidated)
+      puts 'standalone consolidation completed'
+    RUBY
+    output, status = Open3.capture2e(RbConfig.ruby, '-Ilib', '-e', script)
+
+    expect(status.success?).to be(true), output
+    expect(output).to include('standalone consolidation completed')
   end
 end

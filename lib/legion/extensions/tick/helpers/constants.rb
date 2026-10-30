@@ -50,6 +50,13 @@ module Legion
             full_active:    PHASES
           }.freeze
 
+          # Only bounded, consumer-facing work belongs in the optional tick schedule.
+          OPTIONAL_PHASES = {
+            global_workspace: { mode: :full_active, after: :gut_instinct, requires: %i[sensory_processing].freeze }.freeze,
+            metacognition:    { mode: :full_active, after: :post_tick_reflection, requires: %i[post_tick_reflection].freeze }.freeze
+          }.freeze
+          INCOMPLETE_PHASE_STATUSES = %i[error failed failure timeout no_handler skipped deferred unavailable no_result].freeze
+
           # Timing constants (in seconds)
           ACTIVE_TIMEOUT                = 300    # seconds without high-salience signal before demotion
           SENTINEL_TIMEOUT              = 3600   # seconds without any signal before demotion to dormant
@@ -90,8 +97,26 @@ module Legion
 
           module_function
 
-          def phases_for_mode(mode)
-            MODE_PHASES.fetch(mode, PHASES)
+          def phases_for_mode(mode, enabled_optional_phases: [])
+            validate_optional_phases(enabled_optional_phases)
+            phases = MODE_PHASES.fetch(mode, PHASES)
+            return phases if enabled_optional_phases.empty?
+
+            phases.each_with_object([]) do |phase, scheduled|
+              scheduled << phase
+              OPTIONAL_PHASES.each do |optional, contract|
+                next unless enabled_optional_phases.include?(optional) && contract[:mode] == mode && contract[:after] == phase
+
+                scheduled << optional
+              end
+            end
+          end
+
+          def validate_optional_phases(phases)
+            raise ArgumentError, 'enabled_optional_phases must be an Array of phase symbols' unless phases.is_a?(Array)
+
+            unsupported = phases.reject { |phase| OPTIONAL_PHASES.key?(phase) }
+            raise ArgumentError, "unsupported optional phases: #{unsupported.inspect}" unless unsupported.empty?
           end
 
           def tick_budget(mode)
