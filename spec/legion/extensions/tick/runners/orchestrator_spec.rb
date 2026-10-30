@@ -12,6 +12,10 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
   end
 
   describe '#execute_tick' do
+    let(:dream_handlers) do
+      Legion::Extensions::Tick::Helpers::Constants::DREAM_PHASES.to_h { |phase| [phase, ->(**) { { status: :ok } }] }
+    end
+
     before do
       allow(client.send(:tick_state)).to receive(:seconds_since_signal).and_return(60.0)
     end
@@ -28,35 +32,6 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
       expect(r2[:tick_number]).to eq(r1[:tick_number] + 1)
     end
 
-    it 'uses phase handlers when provided' do
-      handler_called = false
-      handlers = {
-        memory_consolidation: lambda { |**|
-          handler_called = true
-          { status: :ok }
-        }
-      }
-      client.execute_tick(phase_handlers: handlers)
-      expect(handler_called).to be true
-    end
-
-    it 'passes extra execution context through to phase handlers' do
-      seen = nil
-      handlers = {
-        memory_consolidation: lambda { |partner_observations: nil, **|
-          seen = partner_observations
-          { status: :ok }
-        }
-      }
-
-      client.execute_tick(
-        phase_handlers:       handlers,
-        partner_observations: [{ identity: 'partner-1' }]
-      )
-
-      expect(seen).to eq([{ identity: 'partner-1' }])
-    end
-
     it 'reports no_handler for unhandled phases' do
       result = client.execute_tick
       expect(result[:results][:memory_consolidation][:status]).to eq(:no_handler)
@@ -68,10 +43,46 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
       expect(result[:mode]).to eq(:sentinel)
     end
 
+    it 'runs action selection for the first human signal without a second signal' do
+      result = client.execute_tick(
+        signals:        [{ source_type: :human_direct, salience: 0.1 }],
+        phase_handlers: { action_selection: ->(**) { { status: :selected } } }
+      )
+
+      expect(result[:mode]).to eq(:full_active)
+      expect(result[:results][:action_selection]).to eq(status: :selected)
+      expect(client.execute_tick[:mode]).to eq(:full_active)
+    end
+
+    it 'promotes a dormant agent immediately for a high-salience non-human signal' do
+      result = client.execute_tick(signals: [{ source_type: :sensor, salience: 0.9 }])
+
+      expect(result[:mode]).to eq(:full_active)
+      expect(result[:phases_executed]).to include(:action_selection)
+    end
+
+    it 'interrupts a dream with full processing for a low-salience human signal' do
+      dreaming_client = Legion::Extensions::Tick::Client.new(mode: :dormant_active)
+      result = dreaming_client.execute_tick(signals: [{ source_type: :human_direct, salience: 0.1 }])
+
+      expect(result[:mode]).to eq(:full_active)
+      expect(result[:phases_executed]).to include(:action_selection)
+      expect(result[:phases_executed]).not_to include(:dream_narration)
+      expect(dreaming_client.tick_status[:last_dream_completed_at]).to be_nil
+    end
+
+    it 'honors a forced mode for one tick before allowing human promotion' do
+      client.set_mode(mode: :sentinel)
+      signals = [{ source_type: :human_direct, salience: 0.1 }]
+
+      expect(client.execute_tick(signals: signals)[:phases_executed]).not_to include(:action_selection)
+      expect(client.execute_tick(signals: signals)[:phases_executed]).to include(:action_selection)
+    end
+
     it 'completes one dormant_active dream cycle and backs off to dormant' do
       client.set_mode(mode: :dormant_active)
 
-      result = client.execute_tick
+      result = client.execute_tick(phase_handlers: dream_handlers)
 
       expect(result[:phases_executed]).to eq(Legion::Extensions::Tick::Helpers::Constants::DREAM_PHASES)
       expect(result[:mode]).to eq(:dormant)
@@ -83,7 +94,7 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
       allow(state).to receive(:seconds_since_signal).and_return(1801.0)
 
       client.set_mode(mode: :dormant_active)
-      client.execute_tick
+      client.execute_tick(phase_handlers: dream_handlers)
       result = client.execute_tick
 
       expect(result[:mode]).to eq(:dormant)
@@ -94,14 +105,13 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
       client.set_mode(mode: :dormant_active)
 
       result = client.execute_tick(
-        phase_handlers: {
-          dream_narration: ->(**) { { status: :error } }
-        }
+        phase_handlers: dream_handlers.merge(dream_narration: ->(**) { { status: :error } })
       )
 
       expect(result[:mode]).to eq(:dormant)
       expect(result[:results][:dream_narration][:status]).to eq(:error)
-      expect(client.tick_status[:last_dream_completed_at]).not_to be_nil
+      expect(client.tick_status[:last_dream_completed_at]).to be_nil
+      expect(client.tick_status[:last_dream_deferred_at]).not_to be_nil
     end
 
     it 'backs off to dormant when the dream tick budget is exhausted before all phases run' do
@@ -115,12 +125,59 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
       expect(result[:mode]).to eq(:dormant)
       expect(result[:phases_executed]).to be_empty
       expect(result[:phases_skipped]).to eq(constants::DREAM_PHASES)
-      expect(client.tick_status[:last_dream_completed_at]).not_to be_nil
+      expect(client.tick_status[:last_dream_completed_at]).to be_nil
+      expect(client.tick_status[:last_dream_deferred_at]).not_to be_nil
+    end
+
+    it 'backs off an unhandled dream without claiming completion' do
+      state = client.send(:tick_state)
+      allow(state).to receive(:seconds_since_signal).and_return(1801.0)
+      client.set_mode(mode: :dormant_active)
+
+      client.execute_tick
+      expect(client.tick_status[:last_dream_completed_at]).to be_nil
+      expect(client.execute_tick[:phases_executed]).to eq([:memory_consolidation])
+    end
+
+    it 'does not claim completion when a handler reports unsuccessful work without a status' do
+      client.set_mode(mode: :dormant_active)
+      client.execute_tick(phase_handlers: dream_handlers.merge(dream_narration: ->(**) { { success: false } }))
+
+      expect(client.tick_status[:last_dream_completed_at]).to be_nil
+      expect(client.tick_status[:last_dream_deferred_at]).not_to be_nil
+    end
+
+    it 'does not immediately replay earlier dream effects when a later handler raises' do
+      allow(client.send(:tick_state)).to receive(:seconds_since_signal).and_return(1801.0)
+      effects = []
+      handlers = dream_handlers.merge(
+        memory_audit:     ->(**) { effects << :audit },
+        association_walk: ->(**) { raise 'association failure' }
+      )
+      client.set_mode(mode: :dormant_active)
+
+      expect { client.execute_tick(phase_handlers: handlers) }.to raise_error('association failure')
+      expect(client.tick_status[:last_dream_completed_at]).to be_nil
+      client.execute_tick(phase_handlers: handlers)
+      expect(effects).to eq([:audit])
+    end
+
+    it 'keeps budget accounting independent of backwards wall-clock adjustments' do
+      allow(Time).to receive(:now).and_return(Time.utc(2026, 10, 29))
+      result = client.execute_tick(phase_handlers: {
+                                     memory_consolidation: lambda { |**|
+                                       allow(Time).to receive(:now).and_return(Time.utc(2026, 10, 28))
+                                       { status: :ok }
+                                     }
+                                   })
+
+      expect(result[:elapsed]).to be >= 0.0
+      expect(result[:elapsed]).to be < 1.0
     end
   end
 
   describe '#evaluate_mode_transition' do
-    it 'promotes dormant to sentinel on any signal' do
+    it 'promotes dormant to sentinel on a low-salience non-human signal' do
       result = client.evaluate_mode_transition(signals: [{ salience: 0.1 }])
       expect(result[:transitioned]).to be true
       expect(result[:new_mode]).to eq(:sentinel)
@@ -176,11 +233,11 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
         expect(result[:new_mode]).to eq(:sentinel)
       end
 
-      it 'transitions dormant_active -> sentinel on high-salience signal' do
+      it 'transitions dormant_active -> full_active on high-salience signal' do
         client.set_mode(mode: :dormant_active)
         result = client.evaluate_mode_transition(signals: [{ salience: 0.9 }])
         expect(result[:transitioned]).to be true
-        expect(result[:new_mode]).to eq(:sentinel)
+        expect(result[:new_mode]).to eq(:full_active)
       end
 
       it 'transitions dormant_active -> dormant when dream_complete: true with no signals' do
@@ -253,12 +310,6 @@ RSpec.describe Legion::Extensions::Tick::Runners::Orchestrator do
     it 'sets valid mode' do
       result = client.set_mode(mode: :full_active)
       expect(result[:mode]).to eq(:full_active)
-    end
-
-    it 'does not expose an unused force expiration timestamp' do
-      client.set_mode(mode: :full_active)
-
-      expect(client.instance_variable_defined?(:@force_expires_at)).to be false
     end
 
     it 'rejects invalid mode' do

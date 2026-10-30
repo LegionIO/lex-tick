@@ -6,7 +6,7 @@ module Legion
       module Helpers
         class State
           attr_reader :mode, :tick_count, :last_signal_at, :last_high_salience_at, :last_dream_completed_at,
-                      :phase_results, :current_phase, :mode_history
+                      :last_dream_deferred_at, :phase_results, :current_phase, :mode_history
 
           def initialize(mode: :dormant)
             @mode = mode
@@ -14,6 +14,7 @@ module Legion
             @last_signal_at = nil
             @last_high_salience_at = nil
             @last_dream_completed_at = nil
+            @last_dream_deferred_at = nil
             @phase_results = {}
             @current_phase = nil
             @mode_history = [{ mode: mode, at: Time.now.utc }]
@@ -49,6 +50,10 @@ module Legion
             @last_dream_completed_at = Time.now.utc
           end
 
+          def record_dream_deferred
+            @last_dream_deferred_at = Time.now.utc
+          end
+
           def seconds_since_signal
             return 0.0 unless @last_signal_at
 
@@ -67,6 +72,12 @@ module Legion
             Time.now.utc - @last_dream_completed_at
           end
 
+          def seconds_since_dream_deferred
+            return Float::INFINITY unless @last_dream_deferred_at
+
+            Time.now.utc - @last_dream_deferred_at
+          end
+
           def to_h
             {
               mode:                    @mode,
@@ -75,6 +86,7 @@ module Legion
               last_signal_at:          @last_signal_at,
               last_high_salience_at:   @last_high_salience_at,
               last_dream_completed_at: @last_dream_completed_at,
+              last_dream_deferred_at:  @last_dream_deferred_at,
               phases_completed:        @phase_results.keys
             }
           end

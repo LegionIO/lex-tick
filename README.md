@@ -18,13 +18,13 @@ The agent operates in one of four modes at any time:
 | `full_active` | Full cognitive engagement | All 16 phases | 5.0s |
 
 Mode transitions are driven by signal salience thresholds and time-since-signal:
-- Any signal: `dormant` -> `sentinel`
-- High salience (>= 0.7) or human direct input: `sentinel` -> `full_active`
-- No high-salience signal for 300s: `full_active` -> `sentinel`
+- Low-salience non-human signal: `dormant` -> `sentinel`
+- High salience (>= 0.7) or human direct input: `dormant`, `dormant_active`, or `sentinel` -> `full_active` on that interaction
+- No high-salience or human signal for 300s: `full_active` -> `sentinel`; an empty heartbeat alone does not demote
 - No signal for 600s while sentinel and dream backoff elapsed: `sentinel` -> `dormant_active` (dream cycle)
 - No signal for 3600s while sentinel: `sentinel` -> `dormant`
 - No signal for 1800s while dormant and dream backoff elapsed: `dormant` -> `dormant_active` (dream cycle)
-- Completed dream cycle: `dormant_active` -> `dormant`, with backoff before another dream cycle
+- Finished or deferred dream cycle: `dormant_active` -> `dormant`, with backoff before another dream cycle
 - Emergency trigger (`:firmware_violation`, `:extinction_protocol`): immediate `full_active`
 
 ## 16 Active Phases (full_active)
@@ -47,6 +47,11 @@ Mode transitions are driven by signal salience thresholds and time-since-signal:
 16. `post_tick_reflection` (5%)
 
 Phase budgets are informational — enforcement is at the tick level, not per-phase.
+Execution budgets use a monotonic clock and stop starting phases once the
+mode's budget is exhausted; an already-running handler is not forcibly
+interrupted. Corrected promotion runs the existing 16-phase, 5-second-budget
+active schedule instead of the 5-phase sentinel schedule for the first human
+interaction. No optional phases or new background schedules are enabled.
 
 ## 10 Dream Phases (dormant_active)
 
@@ -74,8 +79,10 @@ gem 'lex-tick'
 ```ruby
 require 'legion/extensions/tick'
 
+client = Legion::Extensions::Tick::Client.new
+
 # Execute a tick with signals and phase handlers
-result = Legion::Extensions::Tick::Runners::Orchestrator.execute_tick(
+result = client.execute_tick(
   signals: [{ salience: 0.8, source_type: :human_direct, content: "Hello" }],
   phase_handlers: {
     sensory_processing: ->(state:, signals:, prior_results:) {
@@ -94,12 +101,12 @@ result[:phases_executed] # => [:sensory_processing, ..., :post_tick_reflection]
 result[:elapsed]         # => 0.001
 
 # Check/set mode
-Legion::Extensions::Tick::Runners::Orchestrator.tick_status
-Legion::Extensions::Tick::Runners::Orchestrator.set_mode(mode: :sentinel)
+client.tick_status
+client.set_mode(mode: :sentinel)
 # set_mode is sticky for one tick — automatic mode evaluation is skipped on the next execute_tick call
 
 # Force mode transition for emergency
-Legion::Extensions::Tick::Runners::Orchestrator.evaluate_mode_transition(
+client.evaluate_mode_transition(
   emergency: :firmware_violation
 )
 ```
@@ -111,6 +118,8 @@ The `State` object (`Helpers::State`) persists across ticks and tracks:
 - `mode` - current operating mode
 - `tick_count` - total ticks executed
 - `last_signal_at` / `last_high_salience_at` - timestamps driving mode decay
+- `last_dream_completed_at` - most recent fully successful dream cycle
+- `last_dream_deferred_at` - most recent incomplete, failed, unhandled, or interrupted dream; both timestamps enforce dream backoff
 - `phase_results` - results from the current tick's phases
 - `mode_history` - last 50 mode transitions with timestamps
 
